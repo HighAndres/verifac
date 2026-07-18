@@ -195,6 +195,12 @@ export async function uploadMontosMensuales(file: File, mes: number, anio: numbe
   }))
 }
 
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+export async function getDashboard(mes: number, anio: number) {
+  return handle(await fetch(`${API}/api/v1/dashboard?mes=${mes}&anio=${anio}`, { headers: authHeaders() }))
+}
+
 // ── Correo (watcher IMAP) ─────────────────────────────────────────────────────
 
 export async function getWatcherStatus() {

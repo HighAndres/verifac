@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(username, password)
-      router.push('/montos')
+      router.push('/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
     } finally {
