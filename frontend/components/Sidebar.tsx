@@ -21,6 +21,7 @@ const gruposBase = [
       { href: '/montos',   label: '1 · Montos del mes' },
       { href: '/upload',   label: '2 · Subir XML / Excel' },
       { href: '/facturas', label: '3 · Facturas' },
+      { href: '/correo',   label: 'Correo' },
     ],
   },
 ]
@@ -28,8 +29,9 @@ const gruposBase = [
 const grupoAdmin = {
   titulo: 'Administración',
   links: [
-    { href: '/usuarios',  label: 'Usuarios' },
-    { href: '/auditoria', label: 'Auditoría' },
+    { href: '/usuarios',       label: 'Usuarios' },
+    { href: '/config-correo',  label: 'Config. correo' },
+    { href: '/auditoria',      label: 'Auditoría' },
   ],
 }
 
@@ -56,7 +58,7 @@ export default function Sidebar() {
         </div>
         <div>
           <h1 className="text-lg font-semibold leading-none">Verifac</h1>
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">E-FARMA ON LINE</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Conciliación CFDI</p>
         </div>
       </div>
 

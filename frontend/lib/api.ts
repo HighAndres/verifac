@@ -10,6 +10,19 @@ function authHeaders(): HeadersInit {
   return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
+// FastAPI devuelve `detail` como texto (HTTPException) o como lista de objetos
+// {loc, msg, ...} en errores de validación (422). Normaliza ambos a un texto útil.
+function mensajeError(detail: unknown): string {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map(e => (e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : ''))
+      .filter(Boolean)
+    if (msgs.length) return msgs.join(' · ')
+  }
+  return 'Error del servidor'
+}
+
 async function handle(res: Response) {
   if (res.status === 401) {
     localStorage.removeItem('cfdi_token')
@@ -18,7 +31,7 @@ async function handle(res: Response) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail ?? 'Error del servidor')
+    throw new Error(mensajeError(err.detail))
   }
   if (res.status === 204) return null
   return res.json()
@@ -179,5 +192,27 @@ export async function uploadMontosMensuales(file: File, mes: number, anio: numbe
     method: 'POST',
     headers: authHeaders(),
     body: fd,
+  }))
+}
+
+// ── Correo (watcher IMAP) ─────────────────────────────────────────────────────
+
+export async function getWatcherStatus() {
+  return handle(await fetch(`${API}/api/v1/watcher/status`, { headers: authHeaders() }))
+}
+
+export async function runWatcher() {
+  return handle(await fetch(`${API}/api/v1/watcher/run`, { method: 'POST', headers: authHeaders() }))
+}
+
+export async function getWatcherConfig() {
+  return handle(await fetch(`${API}/api/v1/watcher/config`, { headers: authHeaders() }))
+}
+
+export async function updateWatcherConfig(data: object) {
+  return handle(await fetch(`${API}/api/v1/watcher/config`, {
+    method: 'PUT',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   }))
 }

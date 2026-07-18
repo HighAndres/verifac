@@ -38,19 +38,34 @@ def _bootstrap_superadmin():
 
 async def _poll_loop():
     from app.services.imap_watcher import revisar_correo
+    from app.services.config_correo import obtener_config, remitentes_lista, password_configurado
     from app.db.session import SessionLocal
 
-    intervalo = settings.IMAP_POLL_MINUTES * 60
-    logger.info("Watcher IMAP iniciado — cada %d min", settings.IMAP_POLL_MINUTES)
+    logger.info("Watcher IMAP iniciado (config editable desde la BD)")
 
     while True:
-        await asyncio.sleep(intervalo)
-        if not settings.IMAP_PASSWORD or settings.IMAP_PASSWORD == "pon-aqui-tu-app-password":
-            continue
+        # Leer la config vigente en cada ciclo (intervalo, on/off, remitentes).
         db = SessionLocal()
         try:
-            r = revisar_correo(db, settings.IMAP_HOST, settings.IMAP_PORT,
-                               settings.IMAP_USER, settings.IMAP_PASSWORD, settings.IMAP_FOLDER)
+            cfg = obtener_config(db)
+            intervalo = max(1, cfg.poll_minutos) * 60
+            activo = cfg.auto_activo
+            host, port, user, folder = cfg.imap_host, cfg.imap_port, cfg.imap_user, cfg.imap_folder
+            remitentes = remitentes_lista(cfg)
+        except Exception:
+            logger.exception("No se pudo leer la config de correo")
+            intervalo, activo = 300, False
+        finally:
+            db.close()
+
+        await asyncio.sleep(intervalo)
+
+        if not activo or not password_configurado():
+            continue
+
+        db = SessionLocal()
+        try:
+            r = revisar_correo(db, host, port, user, settings.IMAP_PASSWORD, folder, remitentes)
             if r.get("total_procesadas") or r.get("total_errores"):
                 logger.info("Watcher: %d procesadas, %d errores",
                             r["total_procesadas"], r["total_errores"])
@@ -79,7 +94,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 

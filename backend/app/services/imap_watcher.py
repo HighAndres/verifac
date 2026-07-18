@@ -146,11 +146,15 @@ def _procesar_xml(xml_nombre: str, xml_bytes: bytes, remitente: str, db: Session
 # ── Revisión del buzón ────────────────────────────────────────────────────────
 
 def revisar_correo(db: Session, imap_host: str, imap_port: int, imap_user: str,
-                   imap_password: str, imap_folder: str = "INBOX") -> dict:
+                   imap_password: str, imap_folder: str = "INBOX",
+                   remitentes_permitidos: list[str] | None = None) -> dict:
     """
-    Conecta al buzón IMAP, procesa todos los correos no leídos con adjuntos
-    XML o ZIP, y marca cada correo como leído al terminar.
+    Conecta al buzón IMAP y procesa los correos no leídos con adjuntos XML o ZIP.
+    Si `remitentes_permitidos` trae elementos, solo procesa (y marca leídos) los
+    correos de esos remitentes; los demás se dejan intactos (sin leer).
     """
+    permitidos = {r.lower() for r in (remitentes_permitidos or [])}
+    omitidos = 0
     procesadas: list[dict] = []
     errores: list[dict] = []
 
@@ -173,6 +177,14 @@ def revisar_correo(db: Session, imap_host: str, imap_port: int, imap_user: str,
 
             remitente = email.utils.parseaddr(msg.get("From", ""))[1].lower()
             asunto = msg.get("Subject", "(sin asunto)")
+
+            # Filtro de remitentes: si hay lista, ignorar los que no estén en ella
+            # (no se marcan leídos para no tocar correo ajeno al proceso).
+            if permitidos and remitente not in permitidos:
+                omitidos += 1
+                logger.info("Correo de %s omitido (remitente no permitido)", remitente)
+                continue
+
             logger.info("Procesando correo de %s — asunto: %s", remitente, asunto)
 
             # Recolectar TODOS los XMLs y PDFs del correo antes de procesar,
@@ -222,6 +234,7 @@ def revisar_correo(db: Session, imap_host: str, imap_port: int, imap_user: str,
     return {
         "ok": True,
         "revisados": len(email_ids),
+        "omitidos": omitidos,
         "procesadas": procesadas,
         "errores": errores,
         "total_procesadas": len(procesadas),

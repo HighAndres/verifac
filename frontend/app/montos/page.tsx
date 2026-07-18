@@ -175,7 +175,7 @@ export default function MontosPage() {
         </div>
 
         {/* Tabla */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
           {loading ? (
             <p className="text-slate-500 text-sm text-center py-16">Cargando…</p>
           ) : items.length === 0 ? (

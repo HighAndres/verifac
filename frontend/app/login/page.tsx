@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { login } from '@/lib/api'
 
 const APP_NOMBRE = 'Verifac'
-const APP_ORG = 'E-FARMA ON LINE'
+const APP_TAGLINE = 'Validación y conciliación de CFDI'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -41,7 +41,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-white mt-4 tracking-tight">{APP_NOMBRE}</h1>
-          <p className="text-xs text-slate-400 uppercase tracking-widest mt-1">{APP_ORG}</p>
+          <p className="text-xs text-slate-400 mt-1">{APP_TAGLINE}</p>
         </div>
 
         {/* Tarjeta */}
@@ -102,7 +102,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          © {new Date().getFullYear()} {APP_ORG}
+          © {new Date().getFullYear()} {APP_NOMBRE}
         </p>
       </div>
     </div>

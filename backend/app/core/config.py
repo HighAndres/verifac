@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
-    RFC_RECEPTOR: str = "EOL060201JC8"
-    NOMBRE_RECEPTOR: str = "E-FARMA ON LINE"
+    # Receptor de las facturas a validar — se define por despliegue en el .env.
+    RFC_RECEPTOR: str
+    NOMBRE_RECEPTOR: str
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD_HASH: str
     FRONTEND_URL: str = "http://localhost:3000"

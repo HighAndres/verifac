@@ -157,7 +157,7 @@ export default function FacturasPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
           {loading ? (
             <p className="text-slate-500 text-sm text-center py-16">Cargando…</p>
           ) : facturas.length === 0 ? (
