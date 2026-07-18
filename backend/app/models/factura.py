@@ -32,4 +32,5 @@ class Factura(Base):
     fecha_validacion = Column(DateTime(timezone=True))
     origen = Column(String(20), default="xml", nullable=False)   # xml | captura_manual
     pdf_cotejo = Column(String(20))                              # ok | no_coincide | sin_pdf
+    confirmacion_enviada = Column(DateTime(timezone=True))       # correo al profesor (solo aprobadas)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

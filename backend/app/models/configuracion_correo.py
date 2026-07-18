@@ -20,4 +20,6 @@ class ConfiguracionCorreo(Base):
     # Coma-separado. Vacío = procesar correos de cualquier remitente.
     remitentes_permitidos = Column(Text, nullable=True)
     auto_activo = Column(Boolean, nullable=False, default=True)
+    # Enviar correo de confirmación al profesor cuando su factura queda aprobada.
+    confirmaciones_activas = Column(Boolean, nullable=False, default=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

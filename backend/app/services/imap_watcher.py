@@ -231,6 +231,15 @@ def revisar_correo(db: Session, imap_host: str, imap_port: int, imap_user: str,
     finally:
         conn.logout()
 
+    # Confirmaciones por correo a profesores con factura aprobada (idempotente;
+    # respeta el interruptor de configuración).
+    try:
+        from app.services.email_confirmacion import procesar_confirmaciones
+        confirmaciones = procesar_confirmaciones(db)
+    except Exception:
+        logger.exception("Error enviando confirmaciones")
+        confirmaciones = {"enviadas": 0, "errores": 1}
+
     return {
         "ok": True,
         "revisados": len(email_ids),
@@ -239,5 +248,6 @@ def revisar_correo(db: Session, imap_host: str, imap_port: int, imap_user: str,
         "errores": errores,
         "total_procesadas": len(procesadas),
         "total_errores": len(errores),
+        "confirmaciones": confirmaciones,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

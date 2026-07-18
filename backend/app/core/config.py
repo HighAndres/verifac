@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     IMAP_FOLDER: str = "INBOX"
     IMAP_POLL_MINUTES: int = 5            # intervalo de revisión automática
 
+    # SMTP para confirmaciones a profesores (misma cuenta/App Password del IMAP)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 465
+
     class Config:
         env_file = ".env"
 

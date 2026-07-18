@@ -13,6 +13,7 @@ interface Status {
   carpeta: string
   poll_minutos: number
   auto_activo: boolean
+  confirmaciones_activas: boolean
   remitentes_permitidos: string[]
   instrucciones: string | null
 }
@@ -90,6 +91,7 @@ export default function CorreoPage() {
               <div><dt className="text-slate-400">Servidor</dt><dd className="text-slate-700">{status.host} · {status.carpeta}</dd></div>
               <div><dt className="text-slate-400">Revisión automática</dt><dd className="text-slate-700">{status.auto_activo ? `cada ${status.poll_minutos} min` : 'desactivada'}</dd></div>
               <div><dt className="text-slate-400">Remitentes permitidos</dt><dd className="text-slate-700">{status.remitentes_permitidos.length ? status.remitentes_permitidos.join(', ') : 'todos'}</dd></div>
+              <div><dt className="text-slate-400">Confirmación a profesores</dt><dd className="text-slate-700">{status.confirmaciones_activas ? 'activa (solo facturas aprobadas)' : 'desactivada'}</dd></div>
             </dl>
 
             {status.instrucciones && (

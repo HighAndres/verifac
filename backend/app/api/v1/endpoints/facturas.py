@@ -100,6 +100,10 @@ def subir_factura(
     audit.log(db, username=user.username, rol=user.rol, accion="UPLOAD",
               recurso="factura", recurso_id=factura.uuid_cfdi, detalle=f"estado={estado}")
 
+    if estado == "aprobada":
+        from app.services.email_confirmacion import procesar_confirmaciones
+        procesar_confirmaciones(db)
+
     detalles_obj = db.query(ValidacionDetalle).filter(ValidacionDetalle.factura_id == factura.id).all()
     return {**FacturaOut.model_validate(factura).model_dump(), "detalles": detalles_obj}
 
@@ -242,6 +246,10 @@ def revalidar_una(
     audit.log(db, username=user.username, rol=user.rol, accion="REVALIDATE",
               recurso="factura", recurso_id=factura.uuid_cfdi, detalle=f"estado={estado}")
 
+    if estado == "aprobada":
+        from app.services.email_confirmacion import procesar_confirmaciones
+        procesar_confirmaciones(db)
+
     detalles = db.query(ValidacionDetalle).filter(ValidacionDetalle.factura_id == factura.id).all()
     return {**FacturaOut.model_validate(factura).model_dump(), "detalles": detalles}
 
@@ -282,6 +290,9 @@ def revalidar_mes(
     audit.log(db, username=user.username, rol=user.rol, accion="REVALIDATE",
               recurso="factura", recurso_id=f"{mes:02d}/{anio}",
               detalle=f"revalidadas={len(facturas)} cambios={len(cambios)}")
+
+    from app.services.email_confirmacion import procesar_confirmaciones
+    procesar_confirmaciones(db)
 
     return {
         "mes": mes,

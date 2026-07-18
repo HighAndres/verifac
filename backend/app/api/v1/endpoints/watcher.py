@@ -23,6 +23,7 @@ class ConfigCorreoOut(BaseModel):
     poll_minutos: int
     remitentes_permitidos: Optional[str] = None
     auto_activo: bool
+    confirmaciones_activas: bool
     password_configurado: bool
 
     model_config = {"from_attributes": True}
@@ -36,6 +37,7 @@ class ConfigCorreoIn(BaseModel):
     poll_minutos: int = Field(..., ge=1, le=1440)
     remitentes_permitidos: Optional[str] = None
     auto_activo: bool = True
+    confirmaciones_activas: bool = False
 
 
 def _status_payload(db: Session) -> dict:
@@ -48,6 +50,7 @@ def _status_payload(db: Session) -> dict:
         "carpeta": cfg.imap_folder,
         "poll_minutos": cfg.poll_minutos,
         "auto_activo": cfg.auto_activo,
+        "confirmaciones_activas": cfg.confirmaciones_activas,
         "remitentes_permitidos": remitentes_lista(cfg),
         "instrucciones": (
             None if ok
@@ -98,6 +101,7 @@ def obtener_config_correo(_: Usuario = Depends(require_superadmin), db: Session 
         imap_host=cfg.imap_host, imap_port=cfg.imap_port, imap_user=cfg.imap_user,
         imap_folder=cfg.imap_folder, poll_minutos=cfg.poll_minutos,
         remitentes_permitidos=cfg.remitentes_permitidos, auto_activo=cfg.auto_activo,
+        confirmaciones_activas=cfg.confirmaciones_activas,
         password_configurado=password_configurado(),
     )
 
@@ -116,6 +120,7 @@ def actualizar_config_correo(
     cfg.poll_minutos = datos.poll_minutos
     cfg.remitentes_permitidos = datos.remitentes_permitidos or None
     cfg.auto_activo = datos.auto_activo
+    cfg.confirmaciones_activas = datos.confirmaciones_activas
     db.commit()
     db.refresh(cfg)
 
@@ -127,5 +132,6 @@ def actualizar_config_correo(
         imap_host=cfg.imap_host, imap_port=cfg.imap_port, imap_user=cfg.imap_user,
         imap_folder=cfg.imap_folder, poll_minutos=cfg.poll_minutos,
         remitentes_permitidos=cfg.remitentes_permitidos, auto_activo=cfg.auto_activo,
+        confirmaciones_activas=cfg.confirmaciones_activas,
         password_configurado=password_configurado(),
     )

@@ -14,6 +14,7 @@ interface Config {
   poll_minutos: number
   remitentes_permitidos: string | null
   auto_activo: boolean
+  confirmaciones_activas: boolean
   password_configurado: boolean
 }
 
@@ -45,6 +46,7 @@ export default function ConfigCorreoPage() {
         poll_minutos: Number(cfg.poll_minutos),
         remitentes_permitidos: cfg.remitentes_permitidos,
         auto_activo: cfg.auto_activo,
+        confirmaciones_activas: cfg.confirmaciones_activas,
       })
       setCfg(res)
       toast('Configuración de correo guardada', 'success')
@@ -120,6 +122,23 @@ export default function ConfigCorreoPage() {
                   Revisión automática activada
                 </label>
               </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4">
+              <label className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cfg.confirmaciones_activas}
+                  onChange={e => set('confirmaciones_activas', e.target.checked)}
+                  className="w-4 h-4 mt-0.5"
+                />
+                <span>
+                  Enviar correo de <strong>confirmación al profesor</strong> cuando su factura quede aprobada
+                  <span className="block text-xs text-slate-400 mt-0.5">
+                    Se envía una sola vez por factura, desde la misma cuenta del buzón. Las rechazadas no generan correo.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div>
