@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: verifac
+          POSTGRES_PASSWORD: verifac
+          POSTGRES_DB: verifac_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U verifac"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://verifac:verifac@localhost:5432/verifac_test
+      SECRET_KEY: ci-secret-key-no-productivo
+      RFC_RECEPTOR: EOL060201JC8
+      NOMBRE_RECEPTOR: RECEPTOR DE PRUEBA
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD_HASH: $2b$12$ci.placeholder.hash.no.productivo000000000000000000000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - name: Dependencias
+        run: uv sync --frozen
+      - name: Migraciones
+        run: uv run alembic upgrade head
+      - name: Pruebas
+        run: uv run pytest -q
+
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Dependencias
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
