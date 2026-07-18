@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import StatusBadge from '@/components/StatusBadge'
-import { getDashboard, isAuthenticated } from '@/lib/api'
+import { getDashboard, descargarExcelMes, isAuthenticated } from '@/lib/api'
+import { useToast } from '@/components/Toast'
 
 interface Resumen {
   mes: number
@@ -43,10 +44,23 @@ function Tile({ label, value, accent }: { label: string; value: string; accent?:
 
 export default function DashboardPage() {
   const router = useRouter()
+  const toast = useToast()
   const [mes, setMes] = useState(new Date().getMonth() + 1)
   const [anio, setAnio] = useState(ANIO_ACTUAL)
   const [data, setData] = useState<Resumen | null>(null)
   const [loading, setLoading] = useState(true)
+  const [descargando, setDescargando] = useState(false)
+
+  async function handleDescargar() {
+    setDescargando(true)
+    try {
+      await descargarExcelMes(mes, anio)
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al descargar', 'error')
+    } finally {
+      setDescargando(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
@@ -71,6 +85,14 @@ export default function DashboardPage() {
             <p className="text-sm text-slate-500 mt-0.5">Estado de la conciliación de {MESES[mes - 1]} {anio}</p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={handleDescargar}
+              disabled={descargando}
+              title="Descarga el resumen de conciliación y las facturas aprobadas en formato Base BBVA"
+              className={`bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors ${descargando ? 'opacity-60 pointer-events-none' : ''}`}
+            >
+              {descargando ? 'Generando…' : '↓ Descargar Excel'}
+            </button>
             <select value={mes} onChange={e => setMes(Number(e.target.value))}
               className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
               {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}

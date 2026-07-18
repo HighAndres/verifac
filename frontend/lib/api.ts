@@ -201,6 +201,21 @@ export async function getDashboard(mes: number, anio: number) {
   return handle(await fetch(`${API}/api/v1/dashboard?mes=${mes}&anio=${anio}`, { headers: authHeaders() }))
 }
 
+export async function descargarExcelMes(mes: number, anio: number) {
+  const res = await fetch(`${API}/api/v1/facturas/export-mes?mes=${mes}&anio=${anio}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(mensajeError(err.detail))
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Verifac_conciliacion_${anio}-${String(mes).padStart(2, '0')}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ── Correo (watcher IMAP) ─────────────────────────────────────────────────────
 
 export async function getWatcherStatus() {

@@ -188,6 +188,29 @@ def listar_facturas(
     return {"total": total, "items": items}
 
 
+@router.get(
+    "/export-mes",
+    summary="Descarga el mes conciliado en Excel (resumen + formato Base BBVA)",
+)
+def exportar_mes(
+    mes: int = Query(..., ge=1, le=12),
+    anio: int = Query(..., ge=2000, le=2100),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_revisor),
+):
+    from fastapi.responses import Response as _Response
+    from app.services.export_excel import generar_excel_mes, nombre_archivo
+
+    contenido = generar_excel_mes(db, mes, anio)
+    audit.log(db, username=user.username, rol=user.rol, accion="EXPORT",
+              recurso="conciliacion", recurso_id=f"{mes:02d}/{anio}")
+    return _Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo(mes, anio)}"'},
+    )
+
+
 @router.get("/{factura_id}", response_model=FacturaDetalleOut)
 def obtener_factura(factura_id: UUID, db: Session = Depends(get_db)):
     factura = db.query(Factura).filter(Factura.id == factura_id).first()
