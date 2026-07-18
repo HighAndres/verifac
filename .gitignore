@@ -1,0 +1,19 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+*.pyc
+*.pyo
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/.env.local
+
+# General
+.DS_Store
+*.log
+
+# Archivos de prueba con datos reales (RFC/nombres de profesores) — no versionar
+pruebas_operador/

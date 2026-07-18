@@ -1,0 +1,9 @@
+from app.db.base_class import Base  # noqa: F401
+from app.models.profesor import Profesor  # noqa: F401
+from app.models.catalogo_clave import CatalogoClave  # noqa: F401
+from app.models.profesor_clave import ProfesorClave  # noqa: F401
+from app.models.factura import Factura  # noqa: F401
+from app.models.validacion_detalle import ValidacionDetalle  # noqa: F401
+from app.models.usuario import Usuario  # noqa: F401
+from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.monto_mensual import MontoMensual  # noqa: F401
