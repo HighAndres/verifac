@@ -18,7 +18,7 @@ const gruposBase = [
   {
     titulo: 'Operación mensual',
     links: [
-      { href: '/dashboard', label: 'Panorama del mes' },
+      { href: '/dashboard', label: 'Dashboard' },
       { href: '/montos',   label: '1 · Montos del mes' },
       { href: '/upload',   label: '2 · Subir XML / Excel' },
       { href: '/facturas', label: '3 · Facturas' },

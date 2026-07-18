@@ -67,7 +67,7 @@ export default function DashboardPage() {
       <main className="flex-1 p-8 max-w-5xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Panorama del mes</h2>
+            <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
             <p className="text-sm text-slate-500 mt-0.5">Estado de la conciliación de {MESES[mes - 1]} {anio}</p>
           </div>
           <div className="flex gap-3">
