@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { useToast } from '@/components/Toast'
-import { getWatcherStatus, runWatcher, isAuthenticated } from '@/lib/api'
+import { getWatcherStatus, runWatcher, enviarConfirmaciones, isAuthenticated } from '@/lib/api'
 
 interface Status {
   configurado: boolean
@@ -14,6 +14,7 @@ interface Status {
   poll_minutos: number
   auto_activo: boolean
   confirmaciones_activas: boolean
+  confirmaciones_pendientes: number
   remitentes_permitidos: string[]
   instrucciones: string | null
 }
@@ -32,12 +33,35 @@ export default function CorreoPage() {
   const toast = useToast()
   const [status, setStatus] = useState<Status | null>(null)
   const [running, setRunning] = useState(false)
+  const [enviando, setEnviando] = useState(false)
   const [result, setResult] = useState<RunResult | null>(null)
+
+  function cargarStatus() {
+    getWatcherStatus().then(setStatus).catch(() => setStatus(null))
+  }
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
-    getWatcherStatus().then(setStatus).catch(() => setStatus(null))
+    cargarStatus()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleEnviarConfirmaciones() {
+    setEnviando(true)
+    try {
+      const res = await enviarConfirmaciones()
+      toast(
+        res.enviadas > 0
+          ? `${res.enviadas} confirmación(es) enviada(s)${res.errores ? ` · ${res.errores} con error` : ''}`
+          : res.motivo ?? 'No había confirmaciones pendientes',
+        res.errores ? 'info' : 'success'
+      )
+      cargarStatus()
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al enviar confirmaciones', 'error')
+    } finally {
+      setEnviando(false)
+    }
+  }
 
   async function handleRun() {
     setRunning(true)
@@ -50,6 +74,7 @@ export default function CorreoPage() {
         (res.omitidos ? ` · ${res.omitidos} omitidas` : ''),
         res.total_errores ? 'info' : 'success'
       )
+      cargarStatus()
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : 'Error al revisar el correo', 'error')
     } finally {
@@ -77,13 +102,23 @@ export default function CorreoPage() {
                   {status.configurado ? 'Correo configurado' : 'Correo no configurado'}
                 </span>
               </div>
-              <button
-                onClick={handleRun}
-                disabled={running || !status.configurado}
-                className={`bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors`}
-              >
-                {running ? 'Revisando…' : '↻ Revisar ahora'}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleEnviarConfirmaciones}
+                  disabled={enviando || !status.configurado || status.confirmaciones_pendientes === 0}
+                  title="Envía ahora los correos de confirmación a los profesores con factura aprobada"
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {enviando ? 'Enviando…' : `✉ Enviar confirmaciones (${status.confirmaciones_pendientes})`}
+                </button>
+                <button
+                  onClick={handleRun}
+                  disabled={running || !status.configurado}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {running ? 'Revisando…' : '↻ Revisar ahora'}
+                </button>
+              </div>
             </div>
 
             <dl className="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
@@ -91,7 +126,7 @@ export default function CorreoPage() {
               <div><dt className="text-slate-400">Servidor</dt><dd className="text-slate-700">{status.host} · {status.carpeta}</dd></div>
               <div><dt className="text-slate-400">Revisión automática</dt><dd className="text-slate-700">{status.auto_activo ? `cada ${status.poll_minutos} min` : 'desactivada'}</dd></div>
               <div><dt className="text-slate-400">Remitentes permitidos</dt><dd className="text-slate-700">{status.remitentes_permitidos.length ? status.remitentes_permitidos.join(', ') : 'todos'}</dd></div>
-              <div><dt className="text-slate-400">Confirmación a profesores</dt><dd className="text-slate-700">{status.confirmaciones_activas ? 'activa (solo facturas aprobadas)' : 'desactivada'}</dd></div>
+              <div><dt className="text-slate-400">Confirmación a profesores</dt><dd className="text-slate-700">{status.confirmaciones_activas ? 'automática al aprobar' : 'manual (con el botón)'}{status.confirmaciones_pendientes > 0 ? ` · ${status.confirmaciones_pendientes} pendiente(s)` : ''}</dd></div>
             </dl>
 
             {status.instrucciones && (

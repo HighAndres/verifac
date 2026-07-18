@@ -67,6 +67,26 @@ def test_interruptor_apagado_no_envia(db, monkeypatch):
     assert enviados == []
 
 
+def test_boton_manual_ignora_interruptor(db, monkeypatch):
+    """forzar=True (botón) envía aunque el modo automático esté apagado."""
+    enviados = _preparar(db, monkeypatch, activas=False)
+    p = add_profesor(db, rfc="MAIL010101EE5", regimen="612")
+    _factura(db, build_cfdi(rfc_emisor=p.rfc, uuid="MAIL-BTN"), "aprobada")
+
+    assert ec.contar_pendientes(db) == 1
+    r = ec.procesar_confirmaciones(db, forzar=True)
+    assert r["enviadas"] == 1
+    assert len(enviados) == 1
+    assert ec.contar_pendientes(db) == 0
+
+
+def test_contar_pendientes_ignora_sin_profesor(db, monkeypatch):
+    _preparar(db, monkeypatch)
+    # factura aprobada de un RFC que NO está en el catálogo de profesores
+    _factura(db, build_cfdi(rfc_emisor="ZZZ990101ZZ9", uuid="MAIL-NOPROF"), "aprobada")
+    assert ec.contar_pendientes(db) == 0
+
+
 def test_fallo_smtp_no_marca_enviada(db, monkeypatch):
     _preparar(db, monkeypatch)
     def _falla(dest, asunto, cuerpo):

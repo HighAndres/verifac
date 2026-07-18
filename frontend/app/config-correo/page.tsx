@@ -133,9 +133,10 @@ export default function ConfigCorreoPage() {
                   className="w-4 h-4 mt-0.5"
                 />
                 <span>
-                  Enviar correo de <strong>confirmación al profesor</strong> cuando su factura quede aprobada
+                  Enviar <strong>automáticamente</strong> la confirmación al profesor cuando su factura quede aprobada
                   <span className="block text-xs text-slate-400 mt-0.5">
-                    Se envía una sola vez por factura, desde la misma cuenta del buzón. Las rechazadas no generan correo.
+                    Apagado, las confirmaciones solo se envían con el botón &quot;Enviar confirmaciones&quot; de la página
+                    Correo. Se envía una sola vez por factura; las rechazadas no generan correo.
                   </span>
                 </span>
               </label>

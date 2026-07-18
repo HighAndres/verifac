@@ -62,18 +62,11 @@ def _enviar_smtp(destinatario: str, asunto: str, cuerpo: str) -> None:
         smtp.send_message(msg)
 
 
-def procesar_confirmaciones(db: Session) -> dict:
-    """Envía confirmaciones pendientes (aprobadas sin correo enviado). Idempotente."""
-    cfg = obtener_config(db)
-    if not cfg.confirmaciones_activas:
-        return {"enviadas": 0, "motivo": "confirmaciones desactivadas"}
-    if not password_configurado():
-        return {"enviadas": 0, "motivo": "correo no configurado"}
-
+def _facturas_pendientes(db: Session) -> list[Factura]:
     # Ventana de recencia: solo facturas validadas en los últimos 7 días. Evita
-    # que, al activar el interruptor, se envíen correos de meses históricos.
+    # que, al activar el envío, se manden correos de meses históricos.
     limite = datetime.now(timezone.utc) - timedelta(days=7)
-    pendientes = (
+    return (
         db.query(Factura)
         .filter(
             Factura.estado == "aprobada",
@@ -82,6 +75,31 @@ def procesar_confirmaciones(db: Session) -> dict:
         )
         .all()
     )
+
+
+def contar_pendientes(db: Session) -> int:
+    """Cuántas confirmaciones se enviarían (facturas con profesor y correo)."""
+    total = 0
+    for f in _facturas_pendientes(db):
+        profesor = db.query(Profesor).filter(Profesor.rfc == f.rfc_emisor).first()
+        if profesor and profesor.correo:
+            total += 1
+    return total
+
+
+def procesar_confirmaciones(db: Session, forzar: bool = False) -> dict:
+    """Envía confirmaciones pendientes (aprobadas sin correo enviado). Idempotente.
+
+    Con `forzar=True` (botón manual) se ignora el interruptor de envío
+    automático; la contraseña del buzón sigue siendo requisito.
+    """
+    cfg = obtener_config(db)
+    if not forzar and not cfg.confirmaciones_activas:
+        return {"enviadas": 0, "errores": 0, "motivo": "confirmaciones automáticas desactivadas"}
+    if not password_configurado():
+        return {"enviadas": 0, "errores": 0, "motivo": "correo no configurado"}
+
+    pendientes = _facturas_pendientes(db)
 
     enviadas = 0
     errores = 0

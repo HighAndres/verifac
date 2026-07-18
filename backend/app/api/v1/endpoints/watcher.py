@@ -10,6 +10,7 @@ from app.db.session import get_db, SessionLocal
 from app.models.usuario import Usuario
 from app.services import audit
 from app.services.config_correo import obtener_config, remitentes_lista, password_configurado
+from app.services.email_confirmacion import contar_pendientes, procesar_confirmaciones
 from app.services.imap_watcher import revisar_correo
 
 router = APIRouter()
@@ -51,6 +52,7 @@ def _status_payload(db: Session) -> dict:
         "poll_minutos": cfg.poll_minutos,
         "auto_activo": cfg.auto_activo,
         "confirmaciones_activas": cfg.confirmaciones_activas,
+        "confirmaciones_pendientes": contar_pendientes(db),
         "remitentes_permitidos": remitentes_lista(cfg),
         "instrucciones": (
             None if ok
@@ -91,6 +93,22 @@ def ejecutar_watcher(user: Usuario = Depends(get_current_user), db: Session = De
     audit.log(db, username=user.username, rol=user.rol, accion="WATCHER_RUN",
               recurso="correo", detalle=f"procesadas={resultado.get('total_procesadas')} "
                                        f"errores={resultado.get('total_errores')}")
+    return resultado
+
+
+@router.post("/enviar-confirmaciones")
+def enviar_confirmaciones(user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Envío manual: manda las confirmaciones pendientes aunque el modo
+    automático esté apagado (la contraseña del buzón sigue siendo requisito)."""
+    if not password_configurado():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Correo no configurado. Falta la contraseña (IMAP_PASSWORD) en el .env.",
+        )
+    resultado = procesar_confirmaciones(db, forzar=True)
+    audit.log(db, username=user.username, rol=user.rol, accion="CONFIRMACIONES",
+              recurso="correo", detalle=f"enviadas={resultado.get('enviadas')} "
+                                        f"errores={resultado.get('errores')}")
     return resultado
 
 

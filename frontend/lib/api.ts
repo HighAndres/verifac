@@ -226,6 +226,10 @@ export async function runWatcher() {
   return handle(await fetch(`${API}/api/v1/watcher/run`, { method: 'POST', headers: authHeaders() }))
 }
 
+export async function enviarConfirmaciones() {
+  return handle(await fetch(`${API}/api/v1/watcher/enviar-confirmaciones`, { method: 'POST', headers: authHeaders() }))
+}
+
 export async function getWatcherConfig() {
   return handle(await fetch(`${API}/api/v1/watcher/config`, { headers: authHeaders() }))
 }
