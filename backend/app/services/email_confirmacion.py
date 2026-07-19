@@ -65,11 +65,14 @@ def _enviar_smtp(destinatario: str, asunto: str, cuerpo: str) -> None:
 def _facturas_pendientes(db: Session) -> list[Factura]:
     # Ventana de recencia: solo facturas validadas en los últimos 7 días. Evita
     # que, al activar el envío, se manden correos de meses históricos.
+    # Solo origen "xml": las de captura manual llevan UUID sintético (no del SAT)
+    # y confirmarlas por correo comunicaría un folio fiscal falso.
     limite = datetime.now(timezone.utc) - timedelta(days=7)
     return (
         db.query(Factura)
         .filter(
             Factura.estado == "aprobada",
+            Factura.origen == "xml",
             Factura.confirmacion_enviada.is_(None),
             Factura.fecha_validacion >= limite,
         )
@@ -99,15 +102,26 @@ def procesar_confirmaciones(db: Session, forzar: bool = False) -> dict:
     if not password_configurado():
         return {"enviadas": 0, "errores": 0, "motivo": "correo no configurado"}
 
-    pendientes = _facturas_pendientes(db)
+    candidatas = [f.id for f in _facturas_pendientes(db)]
 
     enviadas = 0
     errores = 0
-    for f in pendientes:
+    for factura_id in candidatas:
+        # Reclamo por fila con lock: si otro proceso (botón + watcher a la vez)
+        # ya tomó o confirmó esta factura, se salta — evita correos duplicados.
+        f = (
+            db.query(Factura)
+            .filter(Factura.id == factura_id, Factura.confirmacion_enviada.is_(None))
+            .with_for_update(skip_locked=True)
+            .first()
+        )
+        if f is None:
+            continue
         # Copia local: tras un rollback el objeto queda expirado y accederlo truena.
         uuid_corto = f.uuid_cfdi[:8]
         profesor = db.query(Profesor).filter(Profesor.rfc == f.rfc_emisor).first()
         if not profesor or not profesor.correo:
+            db.rollback()   # libera el lock de la fila
             continue
         destinatario = profesor.correo
         try:
@@ -117,9 +131,16 @@ def procesar_confirmaciones(db: Session, forzar: bool = False) -> dict:
             db.commit()
             enviadas += 1
             logger.info("Confirmación enviada a %s (factura %s)", destinatario, uuid_corto)
-        except Exception:
+        except smtplib.SMTPRecipientsRefused:
             db.rollback()
             errores += 1
-            logger.exception("No se pudo enviar confirmación de %s", uuid_corto)
+            logger.exception("Destinatario rechazado para %s; se continúa", uuid_corto)
+        except Exception:
+            # Fallo de conexión/autenticación: los demás envíos fallarían igual.
+            # Se corta el lote para no acumular timeouts (20 s por intento).
+            db.rollback()
+            errores += 1
+            logger.exception("No se pudo enviar confirmación de %s; se detiene el lote", uuid_corto)
+            break
 
-    return {"enviadas": enviadas, "errores": errores, "pendientes": len(pendientes)}
+    return {"enviadas": enviadas, "errores": errores, "pendientes": len(candidatas)}

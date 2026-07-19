@@ -7,12 +7,12 @@ from app.services.config_correo import obtener_config
 from tests.factories import add_profesor, build_cfdi
 
 
-def _factura(db, cfdi, estado):
+def _factura(db, cfdi, estado, origen="xml"):
     f = Factura(
         uuid_cfdi=cfdi.uuid, rfc_emisor=cfdi.rfc_emisor, nombre_emisor=cfdi.nombre_emisor,
         regimen_emisor=cfdi.regimen_fiscal, fecha_emision=cfdi.fecha,
         subtotal=cfdi.subtotal, total=cfdi.total, estado=estado,
-        origen="xml", pdf_cotejo="sin_pdf", fecha_validacion=datetime.now(timezone.utc),
+        origen=origen, pdf_cotejo="sin_pdf", fecha_validacion=datetime.now(timezone.utc),
     )
     db.add(f)
     db.flush()
@@ -85,6 +85,40 @@ def test_contar_pendientes_ignora_sin_profesor(db, monkeypatch):
     # factura aprobada de un RFC que NO está en el catálogo de profesores
     _factura(db, build_cfdi(rfc_emisor="ZZZ990101ZZ9", uuid="MAIL-NOPROF"), "aprobada")
     assert ec.contar_pendientes(db) == 0
+
+
+def test_captura_manual_no_recibe_correo(db, monkeypatch):
+    """Las facturas capturadas por Excel llevan UUID sintético: jamás se confirma
+    por correo un folio fiscal que no vino del SAT."""
+    enviados = _preparar(db, monkeypatch)
+    p = add_profesor(db, rfc="MAIL010101FF6", regimen="612")
+    _factura(db, build_cfdi(rfc_emisor=p.rfc, uuid="MAIL-MANUAL"), "aprobada",
+             origen="captura_manual")
+
+    assert ec.contar_pendientes(db) == 0
+    r = ec.procesar_confirmaciones(db, forzar=True)
+    assert r["enviadas"] == 0
+    assert enviados == []
+
+
+def test_fallo_conexion_detiene_lote(db, monkeypatch):
+    """Con SMTP caído no se acumulan timeouts: el primer fallo de conexión
+    corta el lote (cada intento costaría hasta 20 s)."""
+    _preparar(db, monkeypatch)
+    intentos = []
+    def _falla(dest, asunto, cuerpo):
+        intentos.append(dest)
+        raise ConnectionError("SMTP caído")
+    monkeypatch.setattr(ec, "_enviar_smtp", _falla)
+    p1 = add_profesor(db, rfc="MAIL010101GG7", regimen="612")
+    p2 = add_profesor(db, rfc="MAIL010101HH8", regimen="612")
+    _factura(db, build_cfdi(rfc_emisor=p1.rfc, uuid="MAIL-C1"), "aprobada")
+    _factura(db, build_cfdi(rfc_emisor=p2.rfc, uuid="MAIL-C2"), "aprobada")
+    db.commit()
+
+    r = ec.procesar_confirmaciones(db)
+    assert len(intentos) == 1        # solo un intento, no uno por pendiente
+    assert r["errores"] == 1
 
 
 def test_fallo_smtp_no_marca_enviada(db, monkeypatch):
