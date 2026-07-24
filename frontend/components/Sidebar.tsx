@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { logout, getNombre, isSuperAdmin } from '@/lib/api'
+import { logout, getNombre, isSuperAdmin, isProfesor } from '@/lib/api'
 
 // Menú ordenado según el proceso de operación:
 // 1) Configuración inicial (una vez)  2) Operación mensual  3) Administración
@@ -22,6 +22,7 @@ const gruposBase = [
       { href: '/montos',   label: '1 · Montos del mes' },
       { href: '/upload',   label: '2 · Subir XML / Excel' },
       { href: '/facturas', label: '3 · Facturas' },
+      { href: '/pagos',    label: '4 · Pagos' },
       { href: '/correo',   label: 'Correo' },
     ],
   },
@@ -38,13 +39,17 @@ const grupoAdmin = {
 
 export default function Sidebar() {
   const path = usePathname()
+  const router = useRouter()
   const [superAdmin, setSuperAdmin] = useState(false)
   const [nombre, setNombre] = useState('')
 
   useEffect(() => {
+    // El rol profesor no tiene acceso a la app administrativa: su lugar es el portal.
+    // Como todas las páginas admin montan este Sidebar, es el punto único de guarda.
+    if (isProfesor()) { router.replace('/portal'); return }
     setSuperAdmin(isSuperAdmin())
     setNombre(getNombre())
-  }, [])
+  }, [router])
 
   const grupos = superAdmin ? [...gruposBase, grupoAdmin] : gruposBase
 

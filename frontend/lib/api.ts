@@ -60,6 +60,43 @@ export function isAuthenticated() { return Boolean(token()) }
 export function getRol(): string { return (typeof window !== 'undefined' ? localStorage.getItem('cfdi_rol') : null) ?? '' }
 export function getNombre(): string { return (typeof window !== 'undefined' ? localStorage.getItem('cfdi_nombre') : null) ?? '' }
 export function isSuperAdmin(): boolean { return getRol() === 'superadmin' }
+export function isProfesor(): boolean { return getRol() === 'profesor' }
+
+// A dónde mandar tras iniciar sesión según el rol.
+export function rutaInicioPorRol(): string { return getRol() === 'profesor' ? '/portal' : '/dashboard' }
+
+// ── Portal del profesor ─────────────────────────────────────────────────────────
+
+export async function getMiPerfil() {
+  return handle(await fetch(`${API}/api/v1/portal/mi-perfil`, { headers: authHeaders() }))
+}
+
+export async function getMisFacturas(params: Record<string, string> = {}) {
+  const qs = new URLSearchParams(params).toString()
+  return handle(await fetch(`${API}/api/v1/portal/mis-facturas${qs ? '?' + qs : ''}`, { headers: authHeaders() }))
+}
+
+export async function getMiFactura(id: string) {
+  return handle(await fetch(`${API}/api/v1/portal/mis-facturas/${id}`, { headers: authHeaders() }))
+}
+
+export async function getMisPagos() {
+  return handle(await fetch(`${API}/api/v1/portal/mis-pagos`, { headers: authHeaders() }))
+}
+
+// ── Pagos (revisor / superadmin) ────────────────────────────────────────────────
+
+export async function getPagos(mes: number, anio: number) {
+  return handle(await fetch(`${API}/api/v1/pagos?mes=${mes}&anio=${anio}`, { headers: authHeaders() }))
+}
+
+export async function guardarPago(data: object) {
+  return handle(await fetch(`${API}/api/v1/pagos`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  }))
+}
 
 // ── Usuarios ──────────────────────────────────────────────────────────────────
 

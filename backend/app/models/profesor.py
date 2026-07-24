@@ -11,6 +11,8 @@ class Profesor(Base):
     nombre = Column(String(200), nullable=False)
     correo = Column(String(200), nullable=False)
     regimen_fiscal = Column(String(3), nullable=False)
+    # Link a la carpeta de Google Drive con documentos/comprobantes del profesor.
+    drive_url = Column(String(500), nullable=True)
     activo = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

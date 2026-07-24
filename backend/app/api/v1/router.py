@@ -1,15 +1,21 @@
 from fastapi import APIRouter, Depends
 
-from app.api.deps import require_revisor, require_superadmin
+from app.api.deps import require_profesor, require_revisor, require_superadmin
 from app.api.v1.endpoints import (
     auth, auditoria, catalogo_claves, dashboard, facturas,
-    profesor_claves, profesores, usuarios, watcher,
+    pagos, portal, profesor_claves, profesores, usuarios, watcher,
 )
 
 api_router = APIRouter()
 
 # Público
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+
+# Portal del profesor (rol profesor)
+api_router.include_router(
+    portal.router, prefix="/portal", tags=["portal profesor"],
+    dependencies=[Depends(require_profesor)],
+)
 
 # Revisor o superadmin
 _rev = {"dependencies": [Depends(require_revisor)]}
@@ -18,6 +24,7 @@ api_router.include_router(profesores.router, prefix="/profesores", tags=["profes
 api_router.include_router(profesor_claves.router, prefix="/profesores", tags=["profesor → claves"], **_rev)
 api_router.include_router(catalogo_claves.router, prefix="/catalogo-claves", tags=["catálogo de claves"], **_rev)
 api_router.include_router(facturas.router, prefix="/facturas", tags=["facturas"], **_rev)
+api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"], **_rev)
 api_router.include_router(watcher.router, prefix="/watcher", tags=["watcher IMAP"], **_rev)
 
 # Solo superadmin

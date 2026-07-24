@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { login } from '@/lib/api'
+import { login, rutaInicioPorRol } from '@/lib/api'
 
 const APP_NOMBRE = 'Verifac'
 const APP_TAGLINE = 'Validación y conciliación de CFDI'
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(username, password)
-      router.push('/dashboard')
+      router.push(rutaInicioPorRol())
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
     } finally {

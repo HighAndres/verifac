@@ -21,6 +21,7 @@ interface Profesor {
   nombre: string
   correo: string
   regimen_fiscal: string
+  drive_url: string | null
   activo: boolean
 }
 
@@ -73,7 +74,7 @@ export default function ProfesorDetallePage() {
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)   // clave_id en proceso
   const [editando, setEditando] = useState(false)
-  const [editForm, setEditForm] = useState({ nombre: '', correo: '', regimen_fiscal: '' })
+  const [editForm, setEditForm] = useState({ nombre: '', correo: '', regimen_fiscal: '', drive_url: '' })
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -116,7 +117,7 @@ export default function ProfesorDetallePage() {
 
   function iniciarEdicion() {
     if (!profesor) return
-    setEditForm({ nombre: profesor.nombre, correo: profesor.correo, regimen_fiscal: profesor.regimen_fiscal })
+    setEditForm({ nombre: profesor.nombre, correo: profesor.correo, regimen_fiscal: profesor.regimen_fiscal, drive_url: profesor.drive_url ?? '' })
     setEditando(true)
     setSaveError('')
   }
@@ -223,6 +224,17 @@ export default function ProfesorDetallePage() {
                   {REGIMENES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Carpeta de Google Drive (URL)</label>
+                <input
+                  type="url"
+                  value={editForm.drive_url}
+                  onChange={e => setEditForm(f => ({ ...f, drive_url: e.target.value }))}
+                  placeholder="https://drive.google.com/drive/folders/…"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">El profesor verá un botón hacia esta carpeta en su portal.</p>
+              </div>
               {saveError && (
                 <p className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                   {saveError}
@@ -249,6 +261,14 @@ export default function ProfesorDetallePage() {
                 <dt className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-0.5">Régimen fiscal</dt>
                 <dd className="text-slate-700">
                   {REGIMENES.find(r => r.value === profesor.regimen_fiscal)?.label ?? profesor.regimen_fiscal}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-0.5">Carpeta de Drive</dt>
+                <dd className="text-slate-700 truncate">
+                  {profesor.drive_url
+                    ? <a href={profesor.drive_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Abrir carpeta</a>
+                    : <span className="text-slate-400">Sin configurar</span>}
                 </dd>
               </div>
             </dl>

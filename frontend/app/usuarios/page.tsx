@@ -3,28 +3,37 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, isSuperAdmin } from '@/lib/api'
+import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getProfesores, isSuperAdmin } from '@/lib/api'
 
 interface Usuario {
   id: string
   username: string
   nombre: string
   rol: string
+  profesor_id: string | null
   activo: boolean
   ultimo_acceso: string | null
   created_at: string
 }
 
+interface ProfesorOpcion {
+  id: string
+  nombre: string
+  rfc: string
+}
+
 const ROL_LABELS: Record<string, string> = {
   superadmin: 'Super Admin',
   revisor: 'Revisor',
+  profesor: 'Profesor',
 }
 
-const emptyForm = { username: '', nombre: '', password: '', rol: 'revisor' }
+const emptyForm = { username: '', nombre: '', password: '', rol: 'revisor', profesor_id: '' }
 
 export default function UsuariosPage() {
   const router = useRouter()
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [profesores, setProfesores] = useState<ProfesorOpcion[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -35,6 +44,9 @@ export default function UsuariosPage() {
   useEffect(() => {
     if (!isSuperAdmin()) { router.push('/facturas'); return }
     load()
+    getProfesores({ limit: '100', activo: 'true' })
+      .then(data => setProfesores(data.items))
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
@@ -49,7 +61,7 @@ export default function UsuariosPage() {
 
   function iniciarEdicion(u: Usuario) {
     setEditId(u.id)
-    setForm({ username: u.username, nombre: u.nombre, password: '', rol: u.rol })
+    setForm({ username: u.username, nombre: u.nombre, password: '', rol: u.rol, profesor_id: u.profesor_id ?? '' })
     setError(''); setShowForm(true)
   }
 
@@ -57,12 +69,20 @@ export default function UsuariosPage() {
     e.preventDefault()
     setSaving(true); setError('')
     try {
+      // profesor_id solo aplica al rol profesor; en otros roles se manda null para limpiarlo.
+      const profesorId = form.rol === 'profesor' ? (form.profesor_id || null) : null
       if (editId) {
-        const payload: Record<string, string> = { nombre: form.nombre, rol: form.rol }
+        const payload: Record<string, unknown> = { nombre: form.nombre, rol: form.rol, profesor_id: profesorId }
         if (form.password) payload.password = form.password
         await updateUsuario(editId, payload)
       } else {
-        await createUsuario(form)
+        await createUsuario({
+          username: form.username,
+          nombre: form.nombre,
+          password: form.password,
+          rol: form.rol,
+          profesor_id: profesorId,
+        })
       }
       setShowForm(false); setEditId(null)
       await load()
@@ -132,8 +152,23 @@ export default function UsuariosPage() {
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="revisor">Revisor — opera la validación</option>
                   <option value="superadmin">Super Admin — acceso total</option>
+                  <option value="profesor">Profesor — solo su portal de consulta</option>
                 </select>
               </div>
+              {form.rol === 'profesor' && (
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Profesor ligado</label>
+                  <select value={form.profesor_id} onChange={e => setForm(f => ({ ...f, profesor_id: e.target.value }))}
+                    required
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">— Selecciona un profesor —</option>
+                    {profesores.map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre} · {p.rfc}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">El portal mostrará solo las facturas de este profesor.</p>
+                </div>
+              )}
               {error && (
                 <p className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
               )}
@@ -170,7 +205,9 @@ export default function UsuariosPage() {
                     <td className="px-4 py-3">{u.nombre}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.rol === 'superadmin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        u.rol === 'superadmin' ? 'bg-purple-100 text-purple-700'
+                          : u.rol === 'profesor' ? 'bg-teal-100 text-teal-700'
+                          : 'bg-blue-100 text-blue-700'
                       }`}>{ROL_LABELS[u.rol] ?? u.rol}</span>
                     </td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(u.ultimo_acceso)}</td>

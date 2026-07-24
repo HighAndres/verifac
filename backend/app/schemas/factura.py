@@ -41,6 +41,7 @@ class FacturaOut(BaseModel):
     fecha_validacion: Optional[datetime] = None
     origen: Optional[str] = None
     pdf_cotejo: Optional[str] = None
+    confirmacion_enviada: Optional[datetime] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

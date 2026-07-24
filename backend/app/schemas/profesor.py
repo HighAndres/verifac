@@ -8,11 +8,28 @@ from pydantic import BaseModel, field_validator
 _RFC_RE = re.compile(r"^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$")
 
 
+def _validar_drive_url(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if not v.startswith(("http://", "https://")):
+        raise ValueError("drive_url debe ser una URL http(s)")
+    return v
+
+
 class ProfesorBase(BaseModel):
     rfc: str
     nombre: str
     correo: str
     regimen_fiscal: str
+    drive_url: Optional[str] = None
+
+    @field_validator("drive_url")
+    @classmethod
+    def drive_url_valido(cls, v: Optional[str]) -> Optional[str]:
+        return _validar_drive_url(v)
 
     @field_validator("rfc")
     @classmethod
@@ -38,7 +55,13 @@ class ProfesorUpdate(BaseModel):
     nombre: Optional[str] = None
     correo: Optional[str] = None
     regimen_fiscal: Optional[str] = None
+    drive_url: Optional[str] = None
     activo: Optional[bool] = None
+
+    @field_validator("drive_url")
+    @classmethod
+    def drive_url_valido(cls, v: Optional[str]) -> Optional[str]:
+        return _validar_drive_url(v)
 
 
 class ProfesorOut(ProfesorBase):
