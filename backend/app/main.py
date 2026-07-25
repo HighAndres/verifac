@@ -37,21 +37,19 @@ def _bootstrap_superadmin():
 
 
 async def _poll_loop():
-    from app.services.imap_watcher import revisar_correo
-    from app.services.config_correo import obtener_config, remitentes_lista, password_configurado
+    from app.services import watcher_runner
+    from app.services.config_correo import obtener_config
     from app.db.session import SessionLocal
 
     logger.info("Watcher IMAP iniciado (config editable desde la BD)")
 
     while True:
-        # Leer la config vigente en cada ciclo (intervalo, on/off, remitentes).
+        # Leer la config vigente en cada ciclo (intervalo, on/off).
         db = SessionLocal()
         try:
             cfg = obtener_config(db)
             intervalo = max(1, cfg.poll_minutos) * 60
             activo = cfg.auto_activo
-            host, port, user, folder = cfg.imap_host, cfg.imap_port, cfg.imap_user, cfg.imap_folder
-            remitentes = remitentes_lista(cfg)
         except Exception:
             logger.exception("No se pudo leer la config de correo")
             intervalo, activo = 300, False
@@ -60,19 +58,15 @@ async def _poll_loop():
 
         await asyncio.sleep(intervalo)
 
-        if not activo or not password_configurado():
+        if not activo:
             continue
 
-        db = SessionLocal()
+        # run_once corre en un hilo (imaplib es bloqueante) y respeta el lock
+        # compartido: si el botón manual ya está corriendo, este ciclo se salta.
         try:
-            r = revisar_correo(db, host, port, user, settings.IMAP_PASSWORD, folder, remitentes)
-            if r.get("total_procesadas") or r.get("total_errores"):
-                logger.info("Watcher: %d procesadas, %d errores",
-                            r["total_procesadas"], r["total_errores"])
+            await asyncio.to_thread(watcher_runner.run_once, "auto")
         except Exception:
             logger.exception("Error en el ciclo del watcher IMAP")
-        finally:
-            db.close()
 
 
 @asynccontextmanager

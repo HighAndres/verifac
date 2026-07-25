@@ -1,17 +1,15 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_superadmin
-from app.core.config import settings
-from app.db.session import get_db, SessionLocal
+from app.db.session import get_db
 from app.models.usuario import Usuario
-from app.services import audit
+from app.services import audit, watcher_runner
 from app.services.config_correo import obtener_config, remitentes_lista, password_configurado
 from app.services.email_confirmacion import contar_pendientes, procesar_confirmaciones
-from app.services.imap_watcher import revisar_correo
 
 router = APIRouter()
 
@@ -44,6 +42,7 @@ class ConfigCorreoIn(BaseModel):
 def _status_payload(db: Session) -> dict:
     cfg = obtener_config(db)
     ok = password_configurado()
+    est = watcher_runner.estado()
     return {
         "configurado": ok,
         "cuenta": cfg.imap_user,
@@ -54,6 +53,8 @@ def _status_payload(db: Session) -> dict:
         "confirmaciones_activas": cfg.confirmaciones_activas,
         "confirmaciones_pendientes": contar_pendientes(db),
         "remitentes_permitidos": remitentes_lista(cfg),
+        "watcher_running": est["running"],
+        "ultima_revision": est["ultimo"],
         "instrucciones": (
             None if ok
             else "Genera un App Password en myaccount.google.com → Seguridad → "
@@ -69,31 +70,27 @@ def estado_watcher(_: Usuario = Depends(get_current_user), db: Session = Depends
 
 
 @router.post("/run")
-def ejecutar_watcher(user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+def ejecutar_watcher(
+    background: BackgroundTasks,
+    user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Dispara la revisión en SEGUNDO PLANO y responde de inmediato (procesar
+    muchos correos tarda más que el timeout del proxy). La UI consulta el avance
+    con /status (watcher_running / ultima_revision)."""
     if not password_configurado():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Correo no configurado. Falta la contraseña (IMAP_PASSWORD) en el .env.",
         )
-    cfg = obtener_config(db)
-    conn = SessionLocal()
-    try:
-        resultado = revisar_correo(
-            db=conn,
-            imap_host=cfg.imap_host,
-            imap_port=cfg.imap_port,
-            imap_user=cfg.imap_user,
-            imap_password=settings.IMAP_PASSWORD,
-            imap_folder=cfg.imap_folder,
-            remitentes_permitidos=remitentes_lista(cfg),
-        )
-    finally:
-        conn.close()
+    if watcher_runner.estado()["running"]:
+        return {"started": False, "running": True,
+                "mensaje": "Ya hay una revisión en curso; espera a que termine."}
 
     audit.log(db, username=user.username, rol=user.rol, accion="WATCHER_RUN",
-              recurso="correo", detalle=f"procesadas={resultado.get('total_procesadas')} "
-                                       f"errores={resultado.get('total_errores')}")
-    return resultado
+              recurso="correo", detalle="revisión iniciada en segundo plano")
+    background.add_task(watcher_runner.run_once, "manual")
+    return {"started": True, "running": True, "mensaje": "Revisión iniciada en segundo plano."}
 
 
 @router.post("/enviar-confirmaciones")

@@ -6,6 +6,16 @@ import Sidebar from '@/components/Sidebar'
 import { useToast } from '@/components/Toast'
 import { getWatcherStatus, runWatcher, enviarConfirmaciones, isAuthenticated } from '@/lib/api'
 
+interface UltimaRevision {
+  revisados?: number
+  procesadas?: number
+  errores?: number
+  omitidos?: number
+  origen?: string
+  timestamp?: string | null
+  error?: string
+}
+
 interface Status {
   configurado: boolean
   cuenta: string
@@ -16,17 +26,12 @@ interface Status {
   confirmaciones_activas: boolean
   confirmaciones_pendientes: number
   remitentes_permitidos: string[]
+  watcher_running: boolean
+  ultima_revision: UltimaRevision | null
   instrucciones: string | null
 }
 
-interface RunResult {
-  revisados: number
-  omitidos: number
-  total_procesadas: number
-  total_errores: number
-  procesadas: { emisor: string; estado: string; pdf_cotejo: string }[]
-  errores: { archivo?: string; error?: string }[]
-}
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 export default function CorreoPage() {
   const router = useRouter()
@@ -34,10 +39,14 @@ export default function CorreoPage() {
   const [status, setStatus] = useState<Status | null>(null)
   const [running, setRunning] = useState(false)
   const [enviando, setEnviando] = useState(false)
-  const [result, setResult] = useState<RunResult | null>(null)
+  const [result, setResult] = useState<UltimaRevision | null>(null)
 
   function cargarStatus() {
-    getWatcherStatus().then(setStatus).catch(() => setStatus(null))
+    getWatcherStatus().then((s: Status) => {
+      setStatus(s)
+      // Si al entrar ya hay una revisión en curso (o la lanzó el poll), reflejarlo.
+      if (s.watcher_running) setRunning(true)
+    }).catch(() => setStatus(null))
   }
 
   useEffect(() => {
@@ -67,14 +76,35 @@ export default function CorreoPage() {
     setRunning(true)
     setResult(null)
     try {
-      const res = await runWatcher()
-      setResult(res)
-      toast(
-        `${res.total_procesadas} procesadas · ${res.total_errores} con error` +
-        (res.omitidos ? ` · ${res.omitidos} omitidas` : ''),
-        res.total_errores ? 'info' : 'success'
-      )
-      cargarStatus()
+      const res = await runWatcher()   // responde al instante; procesa en 2º plano
+      if (res.started === false) {
+        toast(res.mensaje ?? 'Ya hay una revisión en curso', 'info')
+      } else {
+        toast('Revisión iniciada — procesando en segundo plano…', 'info')
+      }
+      // Consultar el avance hasta que termine (sin colgar la petición).
+      const inicio = Date.now()
+      // Un ciclo de gracia para que el backend marque running=true.
+      await sleep(1500)
+      while (Date.now() - inicio < 10 * 60 * 1000) {
+        const s: Status = await getWatcherStatus()
+        setStatus(s)
+        if (!s.watcher_running) {
+          const u = s.ultima_revision
+          setResult(u)
+          if (u && u.error) {
+            toast('La revisión terminó con error', 'error')
+          } else if (u) {
+            toast(
+              `${u.procesadas ?? 0} procesadas · ${u.errores ?? 0} con error` +
+              (u.omitidos ? ` · ${u.omitidos} omitidas` : ''),
+              (u.errores ?? 0) ? 'info' : 'success'
+            )
+          }
+          break
+        }
+        await sleep(3000)
+      }
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : 'Error al revisar el correo', 'error')
     } finally {
@@ -114,9 +144,10 @@ export default function CorreoPage() {
                 <button
                   onClick={handleRun}
                   disabled={running || !status.configurado}
+                  title="Procesa en segundo plano; puedes salir de esta pantalla sin interrumpirlo"
                   className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 >
-                  {running ? 'Revisando…' : '↻ Revisar ahora'}
+                  {running ? 'Procesando…' : '↻ Revisar ahora'}
                 </button>
               </div>
             </div>
@@ -137,39 +168,35 @@ export default function CorreoPage() {
           </div>
         )}
 
-        {result && (
+        {running && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800 flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+            Procesando el correo en segundo plano… puedes salir de esta pantalla, no se interrumpe.
+          </div>
+        )}
+
+        {result && !running && (
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-slate-800 mb-3">Resultado de la última revisión</h3>
-            <div className="flex gap-4 text-sm mb-4">
-              <span className="text-slate-600">Revisados: <b>{result.revisados}</b></span>
-              <span className="text-emerald-700">Procesadas: <b>{result.total_procesadas}</b></span>
-              <span className="text-red-600">Errores: <b>{result.total_errores}</b></span>
-              {result.omitidos > 0 && <span className="text-slate-500">Omitidas: <b>{result.omitidos}</b></span>}
-            </div>
-
-            {result.procesadas.length > 0 && (
-              <ul className="space-y-1 text-sm">
-                {result.procesadas.map((p, i) => (
-                  <li key={i} className="flex items-center justify-between border-b border-slate-100 py-1.5">
-                    <span className="text-slate-700">{p.emisor}</span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${p.estado === 'aprobada' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                      {p.estado}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {result.errores.length > 0 && (
-              <ul className="mt-3 space-y-1 text-xs text-red-600">
-                {result.errores.map((e, i) => (
-                  <li key={i}>• {e.archivo ? `${e.archivo}: ` : ''}{e.error}</li>
-                ))}
-              </ul>
-            )}
-
-            {result.total_procesadas === 0 && result.total_errores === 0 && (
-              <p className="text-sm text-slate-500">No había correos nuevos con facturas.</p>
+            {result.error ? (
+              <p className="text-sm text-red-600">La revisión terminó con error. Revisa la configuración del correo.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <span className="text-slate-600">Revisados: <b>{result.revisados ?? 0}</b></span>
+                  <span className="text-emerald-700">Procesadas: <b>{result.procesadas ?? 0}</b></span>
+                  <span className="text-red-600">Errores: <b>{result.errores ?? 0}</b></span>
+                  {(result.omitidos ?? 0) > 0 && <span className="text-slate-500">Omitidas: <b>{result.omitidos}</b></span>}
+                </div>
+                {(result.procesadas ?? 0) === 0 && (result.errores ?? 0) === 0 ? (
+                  <p className="text-sm text-slate-500 mt-3">No había correos nuevos con facturas.</p>
+                ) : (
+                  <button onClick={() => router.push('/facturas')}
+                    className="mt-3 text-sm text-blue-600 hover:underline">
+                    Ver facturas →
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
