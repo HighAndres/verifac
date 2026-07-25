@@ -16,10 +16,8 @@ from app.schemas.factura import FacturaDetalleOut, FacturaListOut, FacturaOut
 from app.services import audit
 from app.services.cfdi_parser import parsear_cfdi
 from app.services.validador import validar_cfdi
-from app.services.excel_parser import parsear_excel
 from app.services.excel_montos_parser import parsear_excel_montos, normalizar_nombre
 from app.services.revalidacion import revalidar_factura
-from app.services.validador_excel import procesar_fila
 
 router = APIRouter()
 
@@ -106,60 +104,6 @@ def subir_factura(
 
     detalles_obj = db.query(ValidacionDetalle).filter(ValidacionDetalle.factura_id == factura.id).all()
     return {**FacturaOut.model_validate(factura).model_dump(), "detalles": detalles_obj}
-
-
-@router.post(
-    "/upload-excel",
-    summary="Carga masiva desde el formato Ejemplo Base BBVA (.xlsx)",
-)
-def subir_excel(
-    file: UploadFile,
-    db: Session = Depends(get_db),
-    user: Usuario = Depends(require_revisor),
-):
-    if not (file.filename or "").lower().endswith(".xlsx"):
-        raise HTTPException(status_code=422, detail="El archivo debe ser .xlsx")
-
-    from app.core.config import settings
-    contenido = file.file.read()
-    if len(contenido) > settings.MAX_UPLOAD_MB * 1024 * 1024:
-        raise HTTPException(status_code=422, detail=f"El archivo supera el límite de {settings.MAX_UPLOAD_MB} MB")
-
-    try:
-        filas = parsear_excel(contenido)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Error leyendo el Excel: {exc}")
-
-    if not filas:
-        raise HTTPException(status_code=422, detail="El archivo no tiene filas con datos")
-
-    resultados = []
-    for fila in filas:
-        try:
-            resultado = procesar_fila(fila, db)
-            resultados.append(resultado)
-        except Exception as exc:
-            db.rollback()
-            resultados.append({
-                "fila": fila.fila,
-                "nombre_emisor": fila.nombre_emisor,
-                "estado": "error",
-                "errores": [str(exc)],
-            })
-
-    aprobadas = sum(1 for r in resultados if r.get("estado") == "aprobadas")
-    rechazadas = sum(1 for r in resultados if r.get("estado") == "rechazada")
-
-    audit.log(db, username=user.username, rol=user.rol, accion="UPLOAD",
-              recurso="factura", recurso_id="captura_manual",
-              detalle=f"filas={len(filas)} (origen=captura_manual)")
-
-    return {
-        "total_filas": len(filas),
-        "aprobadas": aprobadas,
-        "rechazadas": rechazadas,
-        "resultados": resultados,
-    }
 
 
 @router.get("", response_model=FacturaListOut)

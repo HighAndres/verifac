@@ -20,6 +20,24 @@ def test_612_valida_y_concilia(db):
     assert motivo is None
 
 
+def test_concilia_con_monto_sin_profesor_id_por_rfc(db):
+    """Monto cargado antes de existir el profesor (profesor_id nulo) debe conciliar por RFC."""
+    from app.models.monto_mensual import MontoMensual
+    add_clave(db)
+    prof = add_profesor(db, regimen="612")
+    cfdi = build_cfdi(regimen="612", rfc_emisor=prof.rfc)
+    # Monto SIN profesor_id, pero con el RFC del emisor (como quedaría si se cargó antes).
+    db.add(MontoMensual(
+        profesor_id=None, nombre_layout=prof.nombre, rfc_emisor=prof.rfc,
+        regimen_fiscal="612", mes=cfdi.fecha.month, anio=cfdi.fecha.year,
+        subtotal=cfdi.subtotal, iva_trasladado=cfdi.iva_trasladado,
+        iva_retenido=cfdi.iva_retenido, isr_retenido=cfdi.isr_retenido, total=cfdi.total,
+    ))
+    db.flush()
+    detalles, estado, _ = validar_cfdi(cfdi, db)
+    assert estado == "aprobada", _errores(detalles)
+
+
 def test_626_resico_retenciones(db):
     add_clave(db)
     prof = add_profesor(db, rfc="ROSA010101AAA", regimen="626")

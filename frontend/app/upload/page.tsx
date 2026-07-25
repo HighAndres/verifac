@@ -4,27 +4,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import StatusBadge from '@/components/StatusBadge'
-import { isAuthenticated, uploadFactura } from '@/lib/api'
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8001'
+import { isAuthenticated, uploadFactura, importarProfesores } from '@/lib/api'
 
 type XmlResult = { id: string; estado: string; uuid_cfdi: string; motivo_rechazo: string | null }
 
-type ExcelFila = {
-  fila: number
-  nombre_emisor: string
-  categoria?: string
-  subtotal?: string
-  estado: string
-  errores: string[]
-  factura_id?: string
-}
-
-type ExcelResult = {
+type ImportResult = {
   total_filas: number
-  aprobadas: number
-  rechazadas: number
-  resultados: ExcelFila[]
+  creados: number
+  actualizados: number
+  claves_nuevas_catalogo: number
+  claves_asignadas: number
+  montos_reenlazados: number
+  errores: { fila: number; motivo: string }[]
 }
 
 export default function UploadPage() {
@@ -39,11 +30,11 @@ export default function UploadPage() {
   const [xmlResult, setXmlResult] = useState<XmlResult | null>(null)
   const [xmlError, setXmlError] = useState('')
 
-  // ── Estado Excel ──────────────────────────────────────────────────────────
+  // ── Estado import profesores ──────────────────────────────────────────────
   const xlsxRef = useRef<HTMLInputElement>(null)
   const [xlsxFile, setXlsxFile] = useState<File | null>(null)
   const [xlsxLoading, setXlsxLoading] = useState(false)
-  const [xlsxResult, setXlsxResult] = useState<ExcelResult | null>(null)
+  const [xlsxResult, setXlsxResult] = useState<ImportResult | null>(null)
   const [xlsxError, setXlsxError] = useState('')
 
   useEffect(() => {
@@ -72,28 +63,16 @@ export default function UploadPage() {
     }
   }
 
-  // ── Handlers Excel ────────────────────────────────────────────────────────
-  async function handleExcelUpload() {
+  // ── Handler import de profesores ──────────────────────────────────────────
+  async function handleImportUpload() {
     if (!xlsxFile) return
     setXlsxLoading(true); setXlsxError(''); setXlsxResult(null)
     try {
-      const token = localStorage.getItem('cfdi_token')
-      const fd = new FormData()
-      fd.append('file', xlsxFile)
-      const res = await fetch(`${API}/api/v1/facturas/upload-excel`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      })
-      if (!res.ok) {
-        const e = await res.json()
-        throw new Error(e.detail ?? 'Error del servidor')
-      }
-      const data: ExcelResult = await res.json()
+      const data: ImportResult = await importarProfesores(xlsxFile)
       setXlsxResult(data)
       setXlsxFile(null)
     } catch (err: unknown) {
-      setXlsxError(err instanceof Error ? err.message : 'Error al procesar el Excel')
+      setXlsxError(err instanceof Error ? err.message : 'Error al importar')
     } finally {
       setXlsxLoading(false)
     }
@@ -104,7 +83,7 @@ export default function UploadPage() {
       <Sidebar />
 
       <main className="flex-1 p-8 max-w-3xl">
-        <h2 className="text-2xl font-bold text-slate-800 mb-6">Subir facturas</h2>
+        <h2 className="text-2xl font-bold text-slate-800 mb-6">Cargar datos</h2>
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
@@ -114,7 +93,7 @@ export default function UploadPage() {
               tab === 'xml' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            XML individual (CFDI 4.0)
+            Factura XML (CFDI 4.0)
           </button>
           <button
             onClick={() => setTab('excel')}
@@ -122,7 +101,7 @@ export default function UploadPage() {
               tab === 'excel' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            Excel masivo (formato BBVA)
+            Importar profesores (Excel)
           </button>
         </div>
 
@@ -189,20 +168,21 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* ── Tab Excel ── */}
+        {/* ── Tab Importar profesores ── */}
         {tab === 'excel' && (
           <div>
-            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700 flex items-center justify-between gap-3">
+            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-center justify-between gap-3">
               <div>
-                <span className="font-semibold">Formato requerido:</span> usa la misma estructura del archivo
-                {' '}<span className="font-mono">Ejemplo Base BBVA.xlsx</span> — una fila por profesor, con las mismas columnas.
+                <span className="font-semibold">Da de alta o actualiza profesores</span> desde un Excel.
+                Columnas: <span className="font-mono text-xs">Nombre, RFC, Correo, Clave régimen emisor, Clave prod/serv, Concepto de servicio</span>.
+                Empareja por RFC; el correo es opcional (si falta se pone un temporal).
               </div>
               <a
-                href="/plantillas/Ejemplo_Base_BBVA.xlsx"
-                download="Ejemplo Base BBVA.xlsx"
-                className="shrink-0 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                href="/plantillas/Plantilla_Importar_Profesores.xlsx"
+                download="Plantilla Importar Profesores.xlsx"
+                className="shrink-0 bg-white border border-blue-300 hover:bg-blue-100 text-blue-800 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
               >
-                ↓ Plantilla en blanco
+                ↓ Plantilla
               </a>
             </div>
 
@@ -214,7 +194,7 @@ export default function UploadPage() {
             >
               <input ref={xlsxRef} type="file" accept=".xlsx" className="hidden"
                 onChange={e => e.target.files?.[0] && setXlsxFile(e.target.files[0])} />
-              <div className="text-4xl mb-3">{xlsxFile ? '📊' : '📋'}</div>
+              <div className="text-4xl mb-3">{xlsxFile ? '📊' : '👥'}</div>
               {xlsxFile ? (
                 <>
                   <p className="font-medium text-emerald-700">{xlsxFile.name}</p>
@@ -222,16 +202,16 @@ export default function UploadPage() {
                 </>
               ) : (
                 <>
-                  <p className="font-medium text-slate-600">Haz clic para seleccionar el Excel</p>
-                  <p className="text-sm text-slate-400 mt-1">Archivos .xlsx — formato Ejemplo Base BBVA</p>
+                  <p className="font-medium text-slate-600">Haz clic para seleccionar el Excel de profesores</p>
+                  <p className="text-sm text-slate-400 mt-1">Archivos .xlsx</p>
                 </>
               )}
             </div>
 
             <div className="flex gap-3 mt-4">
-              <button onClick={handleExcelUpload} disabled={!xlsxFile || xlsxLoading}
+              <button onClick={handleImportUpload} disabled={!xlsxFile || xlsxLoading}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-medium py-2.5 rounded-lg text-sm transition-colors">
-                {xlsxLoading ? 'Procesando…' : 'Cargar masivamente'}
+                {xlsxLoading ? 'Importando…' : 'Importar profesores'}
               </button>
               {xlsxFile && (
                 <button onClick={() => { setXlsxFile(null); setXlsxResult(null); setXlsxError('') }}
@@ -247,58 +227,58 @@ export default function UploadPage() {
 
             {xlsxResult && (
               <div className="mt-4 space-y-3">
-                {/* Resumen */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-slate-800">{xlsxResult.total_filas}</p>
-                    <p className="text-xs text-slate-500 mt-1">Total filas</p>
-                  </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-emerald-700">{xlsxResult.aprobadas}</p>
-                    <p className="text-xs text-emerald-600 mt-1">Aprobadas</p>
+                    <p className="text-2xl font-bold text-emerald-700">{xlsxResult.creados}</p>
+                    <p className="text-xs text-emerald-600 mt-1">Creados</p>
                   </div>
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-red-700">{xlsxResult.rechazadas}</p>
-                    <p className="text-xs text-red-600 mt-1">Rechazadas</p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-blue-700">{xlsxResult.actualizados}</p>
+                    <p className="text-xs text-blue-600 mt-1">Actualizados</p>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-slate-800">{xlsxResult.claves_asignadas}</p>
+                    <p className="text-xs text-slate-500 mt-1">Claves asignadas</p>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-slate-800">{xlsxResult.errores.length}</p>
+                    <p className="text-xs text-slate-500 mt-1">Errores</p>
                   </div>
                 </div>
 
-                {/* Detalle por fila */}
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-sm font-semibold text-slate-700">Resultado por fila</p>
-                  </div>
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr>
-                        {['Fila', 'Nombre emisor', 'Categoría', 'Subtotal', 'Estado', ''].map(h => (
-                          <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {xlsxResult.resultados.map(r => (
-                        <tr key={r.fila} className={r.estado === 'rechazada' ? 'bg-red-50' : ''}>
-                          <td className="px-4 py-2.5 text-slate-400 text-xs">{r.fila}</td>
-                          <td className="px-4 py-2.5 font-medium text-slate-700 truncate max-w-[180px]">{r.nombre_emisor}</td>
-                          <td className="px-4 py-2.5 text-slate-500 text-xs">{r.categoria ?? '—'}</td>
-                          <td className="px-4 py-2.5 tabular-nums text-xs">
-                            {r.subtotal ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(r.subtotal)) : '—'}
-                          </td>
-                          <td className="px-4 py-2.5"><StatusBadge estado={r.estado} /></td>
-                          <td className="px-4 py-2.5 text-right">
-                            {r.factura_id && (
-                              <button onClick={() => router.push(`/facturas/${r.factura_id}`)}
-                                className="text-xs text-blue-500 hover:underline">
-                                Ver →
-                              </button>
-                            )}
-                          </td>
+                <p className="text-xs text-slate-500">
+                  {xlsxResult.total_filas} filas · {xlsxResult.claves_nuevas_catalogo} clave(s) nueva(s) en catálogo · {xlsxResult.montos_reenlazados} monto(s) re-enlazado(s)
+                </p>
+
+                {xlsxResult.errores.length > 0 && (
+                  <div className="bg-white rounded-xl border border-red-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-red-100 bg-red-50">
+                      <p className="text-sm font-semibold text-red-700">Filas con error</p>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          {['Fila', 'Motivo'].map(h => (
+                            <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {xlsxResult.errores.map(e => (
+                          <tr key={e.fila}>
+                            <td className="px-4 py-2.5 text-slate-400 text-xs">{e.fila}</td>
+                            <td className="px-4 py-2.5 text-red-700">{e.motivo}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <button onClick={() => router.push('/profesores')}
+                  className="text-sm text-blue-600 hover:underline">
+                  Ver profesores →
+                </button>
               </div>
             )}
           </div>

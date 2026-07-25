@@ -21,6 +21,7 @@ class UsuarioCreate(BaseModel):
     username: str
     nombre: str
     password: str
+    correo: Optional[str] = None
     rol: str = "revisor"
     profesor_id: Optional[UUID] = None
 
@@ -28,6 +29,7 @@ class UsuarioCreate(BaseModel):
 class UsuarioUpdate(BaseModel):
     nombre: Optional[str] = None
     password: Optional[str] = None
+    correo: Optional[str] = None
     rol: Optional[str] = None
     activo: Optional[bool] = None
     profesor_id: Optional[UUID] = None
@@ -37,6 +39,7 @@ class UsuarioOut(BaseModel):
     id: UUID
     username: str
     nombre: str
+    correo: Optional[str] = None
     rol: str
     profesor_id: Optional[UUID] = None
     activo: bool
@@ -51,6 +54,7 @@ class UsuarioOut(BaseModel):
             id=u.id,
             username=u.username,
             nombre=u.nombre,
+            correo=u.correo,
             rol=u.rol,
             profesor_id=u.profesor_id,
             activo=u.activo,
@@ -106,6 +110,7 @@ def crear_usuario(
     user = Usuario(
         username=payload.username,
         nombre=payload.nombre,
+        correo=payload.correo or None,
         password_hash=hash_password(payload.password),
         rol=payload.rol,
         profesor_id=profesor_id,

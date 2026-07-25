@@ -9,6 +9,7 @@ interface Usuario {
   id: string
   username: string
   nombre: string
+  correo: string | null
   rol: string
   profesor_id: string | null
   activo: boolean
@@ -28,7 +29,7 @@ const ROL_LABELS: Record<string, string> = {
   profesor: 'Profesor',
 }
 
-const emptyForm = { username: '', nombre: '', password: '', rol: 'revisor', profesor_id: '' }
+const emptyForm = { username: '', nombre: '', password: '', correo: '', rol: 'revisor', profesor_id: '' }
 
 export default function UsuariosPage() {
   const router = useRouter()
@@ -61,7 +62,7 @@ export default function UsuariosPage() {
 
   function iniciarEdicion(u: Usuario) {
     setEditId(u.id)
-    setForm({ username: u.username, nombre: u.nombre, password: '', rol: u.rol, profesor_id: u.profesor_id ?? '' })
+    setForm({ username: u.username, nombre: u.nombre, password: '', correo: u.correo ?? '', rol: u.rol, profesor_id: u.profesor_id ?? '' })
     setError(''); setShowForm(true)
   }
 
@@ -72,13 +73,14 @@ export default function UsuariosPage() {
       // profesor_id solo aplica al rol profesor; en otros roles se manda null para limpiarlo.
       const profesorId = form.rol === 'profesor' ? (form.profesor_id || null) : null
       if (editId) {
-        const payload: Record<string, unknown> = { nombre: form.nombre, rol: form.rol, profesor_id: profesorId }
+        const payload: Record<string, unknown> = { nombre: form.nombre, correo: form.correo || null, rol: form.rol, profesor_id: profesorId }
         if (form.password) payload.password = form.password
         await updateUsuario(editId, payload)
       } else {
         await createUsuario({
           username: form.username,
           nombre: form.nombre,
+          correo: form.correo || null,
           password: form.password,
           rol: form.rol,
           profesor_id: profesorId,
@@ -140,6 +142,14 @@ export default function UsuariosPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Correo <span className="text-slate-400">(opcional)</span>
+                </label>
+                <input type="email" value={form.correo} onChange={e => setForm(f => ({ ...f, correo: e.target.value }))}
+                  placeholder="juan@empresa.com"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
                   Contraseña {editId && <span className="text-slate-400">(dejar vacío para no cambiar)</span>}
                 </label>
                 <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
@@ -193,7 +203,7 @@ export default function UsuariosPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  {['Usuario', 'Nombre', 'Rol', 'Último acceso', 'Estado', ''].map(h => (
+                  {['Usuario', 'Nombre', 'Correo', 'Rol', 'Último acceso', 'Estado', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -203,6 +213,7 @@ export default function UsuariosPage() {
                   <tr key={u.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-mono font-medium text-slate-700">{u.username}</td>
                     <td className="px-4 py-3">{u.nombre}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{u.correo || <span className="text-slate-300">—</span>}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         u.rol === 'superadmin' ? 'bg-purple-100 text-purple-700'

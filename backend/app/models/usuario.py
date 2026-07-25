@@ -12,6 +12,7 @@ class Usuario(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     nombre = Column(String(200), nullable=False)
     password_hash = Column(String(200), nullable=False)
+    correo = Column(String(200), nullable=True)
     rol = Column(String(20), nullable=False)        # superadmin | revisor | profesor
     # Solo para rol="profesor": profesor al que da acceso este usuario en el portal.
     profesor_id = Column(UUID(as_uuid=True), ForeignKey("profesores.id"), nullable=True, index=True)

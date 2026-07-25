@@ -191,6 +191,16 @@ export async function updateProfesor(id: string, data: object) {
   }))
 }
 
+export async function importarProfesores(file: File) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return handle(await fetch(`${API}/api/v1/profesores/importar`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: fd,
+  }))
+}
+
 // ── Catálogo de claves ────────────────────────────────────────────────────────
 
 export async function getCatalogo(tipo?: string) {

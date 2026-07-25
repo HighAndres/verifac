@@ -5,6 +5,7 @@ Los nombres de campo coinciden exactamente con las columnas del archivo "Ejemplo
 from decimal import Decimal
 from typing import Optional
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -214,10 +215,16 @@ def validar_cfdi(cfdi: CFDIData, db: Session) -> tuple[list[dict], str, Optional
             )
         else:
             periodo = f"{cfdi.fecha.month:02d}/{cfdi.fecha.year}"
+            # Se busca el layout por profesor_id O por RFC del emisor: los montos
+            # guardan rfc_emisor, así que la conciliación funciona aunque el monto se
+            # haya cargado antes de existir el profesor (profesor_id quedó nulo).
             monto_ref = (
                 db.query(MontoMensual)
                 .filter(
-                    MontoMensual.profesor_id == profesor.id,
+                    or_(
+                        MontoMensual.profesor_id == profesor.id,
+                        func.upper(MontoMensual.rfc_emisor) == profesor.rfc.upper(),
+                    ),
                     MontoMensual.mes == cfdi.fecha.month,
                     MontoMensual.anio == cfdi.fecha.year,
                 )

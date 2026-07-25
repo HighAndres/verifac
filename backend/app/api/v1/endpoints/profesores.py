@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_revisor
@@ -9,8 +9,44 @@ from app.models.profesor import Profesor
 from app.models.usuario import Usuario
 from app.schemas.profesor import ProfesorCreate, ProfesorListOut, ProfesorOut, ProfesorUpdate
 from app.services import audit
+from app.services.import_profesores import importar_profesores
 
 router = APIRouter()
+
+
+@router.post("/importar", summary="Alta/actualización masiva de profesores desde Excel base (.xlsx)")
+def importar(
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_revisor),
+):
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=422, detail="El archivo debe ser .xlsx")
+
+    from app.core.config import settings
+    contenido = file.file.read()
+    if len(contenido) > settings.MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(status_code=422, detail=f"El archivo supera el límite de {settings.MAX_UPLOAD_MB} MB")
+
+    try:
+        res = importar_profesores(contenido, db)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    audit.log(db, username=user.username, rol=user.rol, accion="IMPORT",
+              recurso="profesores", recurso_id=file.filename,
+              detalle=f"creados={res.creados} actualizados={res.actualizados} "
+                      f"claves_nuevas={res.claves_nuevas_catalogo} errores={len(res.errores)}")
+
+    return {
+        "total_filas": res.total_filas,
+        "creados": res.creados,
+        "actualizados": res.actualizados,
+        "claves_nuevas_catalogo": res.claves_nuevas_catalogo,
+        "claves_asignadas": res.claves_asignadas,
+        "montos_reenlazados": res.montos_reenlazados,
+        "errores": res.errores,
+    }
 
 
 def _get_or_404(db: Session, profesor_id: UUID) -> Profesor:
