@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
 import { useToast } from '@/components/Toast'
 import {
-  getMiPerfil, getMisFacturas, getMisPagos, isAuthenticated, isProfesor, logout, getNombre,
+  getMiPerfil, getMisFacturas, getMisPagos, getMiFactura, subirMiFactura,
+  isAuthenticated, isProfesor, logout, getNombre,
 } from '@/lib/api'
 
 interface Perfil {
@@ -35,10 +36,61 @@ interface Pago {
   monto_pagado: number | null
 }
 
+interface Detalle {
+  campo: string
+  valor_recibido: string | null
+  valor_esperado: string | null
+  resultado: boolean
+  mensaje: string | null
+}
+
+interface FacturaDetalle extends Factura {
+  detalles: Detalle[]
+}
+
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const ANIO_ACTUAL = new Date().getFullYear()
 const ANIOS = Array.from({ length: 5 }, (_, i) => ANIO_ACTUAL - i)
+
+// Tabla de resultados de validación (los mismos checks que ve el revisor).
+function ChecksTabla({ f, onClose }: { f: FacturaDetalle; onClose?: () => void }) {
+  const fallidos = f.detalles.filter(d => !d.resultado)
+  return (
+    <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <StatusBadge estado={f.estado} />
+          <span className="font-mono text-xs text-slate-400">{f.uuid_cfdi.slice(0, 8)}…</span>
+          <span className="text-xs text-slate-500">{f.detalles.length - fallidos.length}/{f.detalles.length} checks</span>
+        </div>
+        {onClose && <button onClick={onClose} className="text-xs text-slate-400 hover:text-slate-600">Cerrar</button>}
+      </div>
+      {f.estado === 'rechazada' && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+          Corrige los campos marcados en rojo, vuelve a emitir el CFDI y súbelo de nuevo.
+        </p>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-slate-400 uppercase tracking-wide">
+            <tr><th className="py-1.5 pr-3">Campo</th><th className="py-1.5 pr-3">Recibido</th><th className="py-1.5 pr-3">Esperado</th><th className="py-1.5"></th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {f.detalles.map((d, i) => (
+              <tr key={i} className={d.resultado ? '' : 'bg-red-50/60'}>
+                <td className="py-1.5 pr-3 text-slate-700">{d.campo}</td>
+                <td className="py-1.5 pr-3 font-mono text-xs text-slate-500">{d.valor_recibido ?? '—'}</td>
+                <td className="py-1.5 pr-3 font-mono text-xs text-slate-500">{d.valor_esperado ?? '—'}</td>
+                <td className="py-1.5 text-right">{d.resultado ? <span className="text-emerald-600">✔</span> : <span className="text-red-600 font-semibold">✗</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 export default function PortalPage() {
   const router = useRouter()
@@ -51,6 +103,12 @@ export default function PortalPage() {
   const [mes, setMes] = useState('')
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
   const [nombre, setNombre] = useState('')  // se fija en cliente para no romper la hidratación
+  // Subir mi factura
+  const [xmlFile, setXmlFile] = useState<File | null>(null)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const [resultado, setResultado] = useState<FacturaDetalle | null>(null)
+  const [detalleVer, setDetalleVer] = useState<FacturaDetalle | null>(null)  // detalle de una factura previa
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
@@ -79,6 +137,35 @@ export default function PortalPage() {
       toast(msg, 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSubir(e: React.FormEvent) {
+    e.preventDefault()
+    if (!xmlFile || !pdfFile) return
+    setSubiendo(true); setResultado(null); setDetalleVer(null)
+    try {
+      const res: FacturaDetalle = await subirMiFactura(xmlFile, pdfFile)
+      setResultado(res)
+      setXmlFile(null); setPdfFile(null)
+      toast(
+        res.estado === 'aprobada' ? 'Factura aprobada ✓' : 'Factura rechazada — revisa los campos marcados',
+        res.estado === 'aprobada' ? 'success' : 'info'
+      )
+      load()
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al subir la factura', 'error')
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  async function verDetalle(id: string) {
+    try {
+      const d: FacturaDetalle = await getMiFactura(id)
+      setDetalleVer(d); setResultado(null)
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'No se pudo abrir el detalle', 'error')
     }
   }
 
@@ -161,6 +248,37 @@ export default function PortalPage() {
           </div>
         </section>
 
+        {/* Subir mi factura */}
+        <section className="bg-white rounded-xl border border-slate-200">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-base font-semibold text-slate-800">Subir mi factura</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Sube el <b>XML</b> y el <b>PDF</b> de tu factura. El sistema la valida al instante y te dice si está bien o qué corregir.
+            </p>
+          </div>
+          <form onSubmit={handleSubir} className="p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Archivo XML (CFDI 4.0)</span>
+                <input type="file" accept=".xml" required
+                  onChange={e => setXmlFile(e.target.files?.[0] ?? null)}
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-sm file:bg-slate-50 hover:file:bg-slate-100" />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Archivo PDF</span>
+                <input type="file" accept=".pdf" required
+                  onChange={e => setPdfFile(e.target.files?.[0] ?? null)}
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-sm file:bg-slate-50 hover:file:bg-slate-100" />
+              </label>
+            </div>
+            <button type="submit" disabled={subiendo || !xmlFile || !pdfFile}
+              className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+              {subiendo ? 'Validando…' : 'Validar y enviar'}
+            </button>
+          </form>
+          {resultado && <ChecksTabla f={resultado} onClose={() => setResultado(null)} />}
+        </section>
+
         {/* Facturas */}
         <section className="bg-white rounded-xl border border-slate-200">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
@@ -203,7 +321,8 @@ export default function PortalPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {facturas.map(f => (
-                    <tr key={f.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={f.id} onClick={() => verDetalle(f.id)}
+                      className="hover:bg-slate-50 transition-colors cursor-pointer">
                       <td className="px-4 py-3 font-mono text-xs text-slate-400">{f.uuid_cfdi.slice(0, 8)}…</td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(f.fecha_emision)}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold">{fmt(f.total)}</td>
@@ -221,6 +340,10 @@ export default function PortalPage() {
               </table>
             )}
           </div>
+          {!loading && facturas.length > 0 && !detalleVer && (
+            <p className="px-5 pb-3 text-xs text-slate-400">Toca una factura para ver el detalle de la validación.</p>
+          )}
+          {detalleVer && <ChecksTabla f={detalleVer} onClose={() => setDetalleVer(null)} />}
         </section>
 
         {/* Mis pagos */}

@@ -57,9 +57,10 @@ def resumen_mes(db: Session, mes: int, anio: int) -> dict:
             })
     pendientes.sort(key=lambda p: p["nombre"])
 
+    # Solo aprobadas: el revisor/admin trabaja únicamente con facturas validadas.
     ultimas = (
         db.query(Factura)
-        .filter(*del_mes)
+        .filter(*del_mes, Factura.estado == "aprobada")
         .order_by(Factura.created_at.desc())
         .limit(5)
         .all()

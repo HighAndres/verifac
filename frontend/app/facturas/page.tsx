@@ -33,7 +33,7 @@ export default function FacturasPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const [estado, setEstado] = useState('')
+  const [origen, setOrigen] = useState<'xml' | 'portal'>('xml')  // correo | subida del profesor
   const [mes, setMes] = useState('')
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
   const [busqueda, setBusqueda] = useState('')
@@ -42,13 +42,13 @@ export default function FacturasPage() {
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
     load()
-  }, [estado, mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [origen, mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load(q = busquedaRef.current) {
     setLoading(true); setError('')
     try {
-      const params: Record<string, string> = { limit: '100' }
-      if (estado) params.estado = estado
+      // El revisor/admin solo ve facturas ya validadas (aprobadas), separadas por origen.
+      const params: Record<string, string> = { limit: '100', estado: 'aprobada', origen }
       if (mes)    params.mes = mes
       if (anio)   params.anio = anio
       if (q)      params.q = q
@@ -71,7 +71,7 @@ export default function FacturasPage() {
   }
 
   function limpiarFiltros() {
-    setEstado(''); setMes(''); setAnio(String(ANIO_ACTUAL)); setBusqueda('')
+    setMes(''); setAnio(String(ANIO_ACTUAL)); setBusqueda('')
     busquedaRef.current = ''
     load('')
   }
@@ -82,7 +82,7 @@ export default function FacturasPage() {
     v ? new Date(v).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
   const totalImporte = facturas.reduce((s, f) => s + (f.total ? Number(f.total) : 0), 0)
-  const hayFiltros = estado || mes || anio !== String(ANIO_ACTUAL) || busqueda
+  const hayFiltros = mes || anio !== String(ANIO_ACTUAL) || busqueda
 
   return (
     <div className="flex min-h-screen">
@@ -90,13 +90,25 @@ export default function FacturasPage() {
       <main className="flex-1 p-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Facturas</h2>
-            <p className="text-sm text-slate-500 mt-0.5">{total} registro{total !== 1 ? 's' : ''}</p>
+            <h2 className="text-2xl font-bold text-slate-800">Facturas aprobadas</h2>
+            <p className="text-sm text-slate-500 mt-0.5">{total} validada{total !== 1 ? 's' : ''}</p>
           </div>
           <Link href="/upload"
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             + Subir XML
           </Link>
+        </div>
+
+        {/* Secciones por origen */}
+        <div className="flex gap-1 mb-5 bg-slate-100 rounded-lg p-1 w-fit">
+          {([['xml', 'Por correo'], ['portal', 'Subidas por el profesor']] as const).map(([val, label]) => (
+            <button key={val} onClick={() => setOrigen(val)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                origen === val ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}>
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Filtros */}
@@ -116,18 +128,6 @@ export default function FacturasPage() {
           </form>
 
           <div className="w-px h-7 bg-slate-200 self-center" />
-
-          {/* Estado */}
-          <div className="flex gap-1.5">
-            {['', 'pendiente', 'aprobada', 'rechazada'].map(e => (
-              <button key={e} onClick={() => setEstado(e)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  estado === e ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-400'
-                }`}>
-                {e === '' ? 'Todos' : e.charAt(0).toUpperCase() + e.slice(1)}
-              </button>
-            ))}
-          </div>
 
           {/* Mes */}
           <select value={mes} onChange={e => setMes(e.target.value)}

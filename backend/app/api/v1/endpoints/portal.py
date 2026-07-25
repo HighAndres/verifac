@@ -8,17 +8,20 @@ el token (get_current_profesor), nunca por un id que mande el cliente.
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_profesor, get_db
+from app.core.config import settings
 from app.models.factura import Factura
 from app.models.pago import Pago
 from app.models.profesor import Profesor
 from app.models.validacion_detalle import ValidacionDetalle
 from app.schemas.factura import FacturaDetalleOut, FacturaListOut, FacturaOut
+from app.services.cfdi_parser import parsear_cfdi
+from app.services.factura_portal import FacturaAjena, FacturaDuplicada, registrar_factura_portal
 
 router = APIRouter()
 
@@ -90,6 +93,43 @@ def mis_pagos(
             for p in pagos
         ]
     }
+
+
+@router.post("/subir-factura", response_model=FacturaDetalleOut, status_code=status.HTTP_201_CREATED,
+             summary="El profesor sube su XML + PDF, se valida y devuelve el resultado")
+def subir_factura(
+    xml: UploadFile,
+    pdf: UploadFile,
+    db: Session = Depends(get_db),
+    profesor: Profesor = Depends(get_current_profesor),
+):
+    if not (xml.filename or "").lower().endswith(".xml"):
+        raise HTTPException(status_code=422, detail="El archivo XML debe tener extensión .xml")
+    if not (pdf.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=422, detail="El archivo PDF debe tener extensión .pdf")
+
+    xml_bytes = xml.file.read()
+    pdf_bytes = pdf.file.read()
+    limite = settings.MAX_UPLOAD_MB * 1024 * 1024
+    if len(xml_bytes) > limite or len(pdf_bytes) > limite:
+        raise HTTPException(status_code=422, detail=f"Cada archivo debe pesar máximo {settings.MAX_UPLOAD_MB} MB")
+
+    try:
+        cfdi = parsear_cfdi(xml_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"No se pudo leer el XML: {exc}")
+
+    try:
+        factura = registrar_factura_portal(cfdi, pdf_bytes, profesor, db)
+    except FacturaAjena as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except FacturaDuplicada as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    detalles = db.query(ValidacionDetalle).filter(ValidacionDetalle.factura_id == factura.id).all()
+    return {**FacturaOut.model_validate(factura).model_dump(), "detalles": detalles}
 
 
 @router.get("/mis-facturas/{factura_id}", response_model=FacturaDetalleOut)

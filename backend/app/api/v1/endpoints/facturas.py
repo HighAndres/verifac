@@ -111,6 +111,7 @@ def listar_facturas(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     estado: Optional[str] = Query(None),
+    origen: Optional[str] = Query(None, description="xml (correo) | portal (subida del profesor)"),
     rfc_emisor: Optional[str] = Query(None),
     mes: Optional[int] = Query(None, ge=1, le=12),
     anio: Optional[int] = Query(None, ge=2000, le=2100),
@@ -124,6 +125,8 @@ def listar_facturas(
     q = db.query(Factura)
     if estado:
         q = q.filter(Factura.estado == estado)
+    if origen:
+        q = q.filter(Factura.origen == origen)
     if rfc_emisor:
         q = q.filter(Factura.rfc_emisor == rfc_emisor.upper())
     if mes:
