@@ -25,9 +25,10 @@ def _fmt(v) -> float | None:
 
 
 def lista_mensual(db: Session, mes: int, anio: int) -> list[dict]:
+    # Se listan TODOS los profesores del catálogo (activos e inactivos), igual que
+    # la pantalla de Profesores, para no ocultar a nadie silenciosamente.
     profesores = (
         db.query(Profesor)
-        .filter(Profesor.activo == True)  # noqa: E712
         .order_by(Profesor.nombre)
         .all()
     )
@@ -71,6 +72,7 @@ def lista_mensual(db: Session, mes: int, anio: int) -> list[dict]:
             "profesor_id": str(prof.id),
             "nombre": prof.nombre,
             "rfc": prof.rfc,
+            "activo": prof.activo,
             "factura_estado": factura.estado if factura else None,
             "factura_total": _fmt(factura.total) if factura else None,
             "esperado": _fmt(esperado_por_prof.get(prof.id)),

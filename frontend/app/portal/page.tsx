@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
 import { useToast } from '@/components/Toast'
@@ -58,7 +58,9 @@ type EstadoMesActual = 'sin_subir' | 'rechazada' | 'aceptada' | 'pagada'
 
 // Línea de progreso de la factura del mes en curso: Aceptada → En proceso de pago → Pagada.
 // 'rechazada' y 'sin_subir' son estados previos a esa línea, se muestran aparte.
-function ProgresoMesActual({ estado, mesLabel }: { estado: EstadoMesActual; mesLabel: string }) {
+function ProgresoMesActual({ estado, mesLabel, onSubirClick }: {
+  estado: EstadoMesActual; mesLabel: string; onSubirClick: () => void
+}) {
   const pasos = ['Aceptada', 'En proceso de pago', 'Pagada']
   const doneCount = estado === 'pagada' ? 3 : estado === 'aceptada' ? 1 : 0
   const rechazada = estado === 'rechazada'
@@ -68,12 +70,24 @@ function ProgresoMesActual({ estado, mesLabel }: { estado: EstadoMesActual; mesL
     <section className="bg-white rounded-xl border border-slate-200 p-5">
       <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Tu factura de {mesLabel}</h2>
       {sinSubir && (
-        <p className="text-sm text-slate-500 mb-4">Aún no subes tu factura de este mes.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <p className="text-sm text-slate-500">Aún no subes tu factura de este mes.</p>
+          <button onClick={onSubirClick}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shrink-0">
+            Subir mi factura
+          </button>
+        </div>
       )}
       {rechazada && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
-          Tu factura de este mes fue rechazada. Corrige los campos marcados y vuelve a subirla.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-sm text-red-700">
+            Tu factura de este mes fue rechazada. Corrige lo señalado y vuelve a subirla.
+          </p>
+          <button onClick={onSubirClick}
+            className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shrink-0">
+            Corregir y volver a subir
+          </button>
+        </div>
       )}
       <div className="flex items-center">
         {pasos.map((p, i) => {
@@ -106,42 +120,92 @@ function ProgresoMesActual({ estado, mesLabel }: { estado: EstadoMesActual; mesL
   )
 }
 
-// Tabla de resultados de validación (los mismos checks que ve el revisor).
+// Resultado de validación: resumen en lenguaje simple + detalle técnico opcional.
 function ChecksTabla({ f, onClose }: { f: FacturaDetalle; onClose?: () => void }) {
+  const [verDetalleTecnico, setVerDetalleTecnico] = useState(false)
   const fallidos = f.detalles.filter(d => !d.resultado)
+  const ok = f.detalles.length - fallidos.length
   return (
     <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <StatusBadge estado={f.estado} />
           <span className="font-mono text-xs text-slate-400">{f.uuid_cfdi.slice(0, 8)}…</span>
-          <span className="text-xs text-slate-500">{f.detalles.length - fallidos.length}/{f.detalles.length} checks</span>
+          <span className="text-xs text-slate-500">{ok} de {f.detalles.length} datos correctos</span>
         </div>
         {onClose && <button onClick={onClose} className="text-xs text-slate-400 hover:text-slate-600">Cerrar</button>}
       </div>
-      {f.estado === 'rechazada' && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-          Corrige los campos marcados en rojo, vuelve a emitir el CFDI y súbelo de nuevo.
-        </p>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-400 uppercase tracking-wide">
-            <tr><th className="py-1.5 pr-3">Campo</th><th className="py-1.5 pr-3">Recibido</th><th className="py-1.5 pr-3">Esperado</th><th className="py-1.5"></th></tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {f.detalles.map((d, i) => (
-              <tr key={i} className={d.resultado ? '' : 'bg-red-50/60'}>
-                <td className="py-1.5 pr-3 text-slate-700">{d.campo}</td>
-                <td className="py-1.5 pr-3 font-mono text-xs text-slate-500">{d.valor_recibido ?? '—'}</td>
-                <td className="py-1.5 pr-3 font-mono text-xs text-slate-500">{d.valor_esperado ?? '—'}</td>
-                <td className="py-1.5 text-right">{d.resultado ? <span className="text-emerald-600">✔</span> : <span className="text-red-600 font-semibold">✗</span>}</td>
-              </tr>
+
+      {f.estado === 'rechazada' && fallidos.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+          <p className="text-sm text-red-700 mb-2">
+            Esto necesita corregirse antes de volver a subir tu factura:
+          </p>
+          <ul className="text-sm text-red-800 list-disc pl-5 space-y-0.5">
+            {fallidos.map((d, i) => (
+              <li key={i}>
+                <span className="font-medium">{d.campo}</span>
+                {d.valor_esperado && <> — debería ser <span className="font-mono">{d.valor_esperado}</span></>}
+                {d.valor_recibido && <>, tu factura trae <span className="font-mono">{d.valor_recibido}</span></>}
+              </li>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+        </div>
+      )}
+
+      <button onClick={() => setVerDetalleTecnico(v => !v)}
+        className="text-xs text-slate-400 hover:text-slate-600 underline mb-2">
+        {verDetalleTecnico ? 'Ocultar detalle técnico' : 'Ver detalle técnico'}
+      </button>
+
+      {verDetalleTecnico && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-slate-400 uppercase tracking-wide">
+              <tr><th className="py-1.5 pr-3">Dato</th><th className="py-1.5 pr-3">Tu factura trae</th><th className="py-1.5 pr-3">Debería ser</th><th className="py-1.5"></th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {f.detalles.map((d, i) => (
+                <tr key={i} className={d.resultado ? '' : 'bg-red-50/60'}>
+                  <td className="py-1.5 pr-3 text-slate-700">{d.campo}</td>
+                  <td className="py-1.5 pr-3 font-mono text-xs text-slate-500">{d.valor_recibido ?? '—'}</td>
+                  <td className="py-1.5 pr-3 font-mono text-xs text-slate-500">{d.valor_esperado ?? '—'}</td>
+                  <td className="py-1.5 text-right">{d.resultado ? <span className="text-emerald-600">✔</span> : <span className="text-red-600 font-semibold">✗</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
+  )
+}
+
+// Selector de archivo con chip de confirmación (nombre + quitar), más claro que el input nativo solo.
+function ArchivoField({ label, accept, file, onChange, inputRef }: {
+  label: string; accept: string; file: File | null; onChange: (f: File | null) => void
+  inputRef?: React.RefObject<HTMLInputElement>
+}) {
+  const fmtTamano = (bytes: number) =>
+    bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-slate-600 mb-1">{label}</span>
+      {file ? (
+        <div className="flex items-center justify-between gap-2 border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2">
+          <span className="text-sm text-emerald-800 truncate">✔ {file.name} <span className="text-emerald-600">({fmtTamano(file.size)})</span></span>
+          <button type="button" onClick={() => onChange(null)}
+            className="text-xs text-emerald-700 hover:text-emerald-900 underline shrink-0">
+            Quitar
+          </button>
+        </div>
+      ) : (
+        <input ref={inputRef} type="file" accept={accept} required
+          onChange={e => onChange(e.target.files?.[0] ?? null)}
+          className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-sm file:bg-slate-50 hover:file:bg-slate-100" />
+      )}
+    </label>
   )
 }
 
@@ -164,6 +228,8 @@ export default function PortalPage() {
   const [subiendo, setSubiendo] = useState(false)
   const [resultado, setResultado] = useState<FacturaDetalle | null>(null)
   const [detalleVer, setDetalleVer] = useState<FacturaDetalle | null>(null)  // detalle de una factura previa
+  const subirRef = useRef<HTMLDivElement>(null)
+  const xmlInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
@@ -248,6 +314,11 @@ export default function PortalPage() {
   }
   const fmtPeriodo = (mes: number, anio: number) => `${MESES[mes - 1]} ${anio}`
 
+  function irASubir() {
+    subirRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    xmlInputRef.current?.focus()
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Encabezado */}
@@ -285,8 +356,41 @@ export default function PortalPage() {
               : 'aceptada'
             }
             mesLabel={`${MESES[MES_ACTUAL - 1]} ${ANIO_ACTUAL}`}
+            onSubirClick={irASubir}
           />
         )}
+
+        {/* Subir mi factura — la acción principal, primero */}
+        <section ref={subirRef} className="bg-white rounded-xl border border-slate-200 scroll-mt-4">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-base font-semibold text-slate-800">Subir mi factura</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Sube el <b>XML</b> y el <b>PDF</b> de tu factura. El sistema la valida al instante y te dice si está bien o qué corregir.
+            </p>
+          </div>
+          <form onSubmit={handleSubir} className="p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ArchivoField
+                label="Archivo XML (CFDI 4.0)"
+                accept=".xml"
+                file={xmlFile}
+                onChange={setXmlFile}
+                inputRef={xmlInputRef}
+              />
+              <ArchivoField
+                label="Archivo PDF"
+                accept=".pdf"
+                file={pdfFile}
+                onChange={setPdfFile}
+              />
+            </div>
+            <button type="submit" disabled={subiendo || !xmlFile || !pdfFile}
+              className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+              {subiendo ? 'Validando…' : 'Validar y enviar'}
+            </button>
+          </form>
+          {resultado && <ChecksTabla f={resultado} onClose={() => setResultado(null)} />}
+        </section>
 
         {/* Datos + documentos */}
         <section className="grid gap-4 sm:grid-cols-2">
@@ -330,37 +434,6 @@ export default function PortalPage() {
           </div>
         </section>
 
-        {/* Subir mi factura */}
-        <section className="bg-white rounded-xl border border-slate-200">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-base font-semibold text-slate-800">Subir mi factura</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Sube el <b>XML</b> y el <b>PDF</b> de tu factura. El sistema la valida al instante y te dice si está bien o qué corregir.
-            </p>
-          </div>
-          <form onSubmit={handleSubir} className="p-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">Archivo XML (CFDI 4.0)</span>
-                <input type="file" accept=".xml" required
-                  onChange={e => setXmlFile(e.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-sm file:bg-slate-50 hover:file:bg-slate-100" />
-              </label>
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">Archivo PDF</span>
-                <input type="file" accept=".pdf" required
-                  onChange={e => setPdfFile(e.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-sm file:bg-slate-50 hover:file:bg-slate-100" />
-              </label>
-            </div>
-            <button type="submit" disabled={subiendo || !xmlFile || !pdfFile}
-              className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
-              {subiendo ? 'Validando…' : 'Validar y enviar'}
-            </button>
-          </form>
-          {resultado && <ChecksTabla f={resultado} onClose={() => setResultado(null)} />}
-        </section>
-
         {/* Facturas */}
         <section className="bg-white rounded-xl border border-slate-200">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
@@ -390,7 +463,9 @@ export default function PortalPage() {
               <p className="text-slate-500 text-sm text-center py-16">Cargando…</p>
             ) : facturas.length === 0 ? (
               <p className="text-slate-500 text-sm text-center py-16">
-                No tienes facturas registradas para el periodo seleccionado.
+                {!mes && anio === String(ANIO_ACTUAL)
+                  ? <>Aún no has subido ninguna factura. Usa el formulario de arriba para subir la primera.</>
+                  : <>No tienes facturas registradas para el periodo seleccionado.</>}
               </p>
             ) : (
               <table className="w-full text-sm">

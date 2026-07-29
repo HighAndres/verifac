@@ -68,6 +68,8 @@ class ProfesorOut(ProfesorBase):
     id: UUID
     activo: bool
     created_at: datetime
+    tiene_cuenta: bool = False
+    cuenta_username: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

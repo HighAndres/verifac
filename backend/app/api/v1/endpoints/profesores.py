@@ -74,7 +74,24 @@ def listar_profesores(
         )
     total = query.count()
     items = query.order_by(Profesor.nombre).offset(skip).limit(limit).all()
-    return {"total": total, "items": items}
+
+    cuentas = {}
+    if items:
+        cuentas = {
+            u.profesor_id: u.username
+            for u in db.query(Usuario.profesor_id, Usuario.username)
+            .filter(Usuario.profesor_id.in_([p.id for p in items]))
+            .all()
+        }
+    items_out = [
+        {
+            **ProfesorOut.model_validate(p).model_dump(),
+            "tiene_cuenta": p.id in cuentas,
+            "cuenta_username": cuentas.get(p.id),
+        }
+        for p in items
+    ]
+    return {"total": total, "items": items_out}
 
 
 @router.post("", response_model=ProfesorOut, status_code=status.HTTP_201_CREATED)
@@ -102,7 +119,13 @@ def crear_profesor(
 
 @router.get("/{profesor_id}", response_model=ProfesorOut)
 def obtener_profesor(profesor_id: UUID, db: Session = Depends(get_db)):
-    return _get_or_404(db, profesor_id)
+    profesor = _get_or_404(db, profesor_id)
+    cuenta = db.query(Usuario.username).filter(Usuario.profesor_id == profesor_id).first()
+    return {
+        **ProfesorOut.model_validate(profesor).model_dump(),
+        "tiene_cuenta": cuenta is not None,
+        "cuenta_username": cuenta[0] if cuenta else None,
+    }
 
 
 @router.patch("/{profesor_id}", response_model=ProfesorOut)

@@ -11,6 +11,7 @@ interface FilaPago {
   profesor_id: string
   nombre: string
   rfc: string
+  activo: boolean
   factura_estado: string | null
   factura_total: number | null
   esperado: number | null
@@ -37,6 +38,7 @@ export default function PagosPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [mes, setMes] = useState(String(HOY.getMonth() + 1))
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
+  const [busqueda, setBusqueda] = useState('')
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
@@ -106,6 +108,11 @@ export default function PagosPage() {
     v != null ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v) : '—'
 
   const pagados = filas.filter(f => f.pagada).length
+  const filasFiltradas = busqueda
+    ? filas.filter(f =>
+        f.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+        f.rfc.toLowerCase().includes(busqueda.toLowerCase()))
+    : filas
 
   return (
     <div className="flex min-h-screen">
@@ -115,10 +122,13 @@ export default function PagosPage() {
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Pagos</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              {pagados} de {filas.length} profesor{filas.length !== 1 ? 'es' : ''} marcado{pagados !== 1 ? 's' : ''} como pagado{pagados !== 1 ? 's' : ''}
+              {filas.length} profesor{filas.length !== 1 ? 'es' : ''} en el catálogo — {pagados} marcado{pagados !== 1 ? 's' : ''} como pagado{pagados !== 1 ? 's' : ''}
             </p>
           </div>
           <div className="flex gap-2">
+            <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar RFC o nombre…"
+              className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white w-52 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <select value={mes} onChange={e => setMes(e.target.value)}
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
               {MESES.map((m, i) => <option key={i + 1} value={String(i + 1)}>{m}</option>)}
@@ -139,25 +149,34 @@ export default function PagosPage() {
         <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
           {loading ? (
             <p className="text-slate-500 text-sm text-center py-16">Cargando…</p>
-          ) : filas.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-16">No hay profesores activos.</p>
+          ) : filasFiltradas.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-16">
+              {busqueda ? 'Sin resultados para tu búsqueda.' : 'No hay profesores en el catálogo.'}
+            </p>
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  {['Profesor', 'Factura del mes', 'Esperado', 'Pagada', 'Fecha de pago', 'Método', 'Monto pagado'].map(h => (
+                  {['Profesor', 'Estado', 'Factura del mes', 'Esperado', 'Pagada', 'Fecha de pago', 'Método', 'Monto pagado'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filas.map(f => {
+                {filasFiltradas.map(f => {
                   const guardando = savingId === f.profesor_id
                   return (
-                    <tr key={f.profesor_id} className={`hover:bg-slate-50 transition-colors ${guardando ? 'opacity-60' : ''}`}>
+                    <tr key={f.profesor_id} className={`hover:bg-slate-50 transition-colors ${guardando ? 'opacity-60' : ''} ${!f.activo ? 'opacity-60' : ''}`}>
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-700">{f.nombre}</div>
                         <div className="font-mono text-xs text-slate-400">{f.rfc}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          f.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {f.activo ? 'Activo' : 'Inactivo'}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         {f.factura_estado

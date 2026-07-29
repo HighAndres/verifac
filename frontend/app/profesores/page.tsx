@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
-import { getProfesores, createProfesor, isAuthenticated } from '@/lib/api'
+import { getProfesores, createProfesor, createUsuario, isAuthenticated, isSuperAdmin } from '@/lib/api'
 import { useToast } from '@/components/Toast'
 
 interface Profesor {
@@ -14,7 +14,11 @@ interface Profesor {
   regimen_fiscal: string
   activo: boolean
   created_at: string
+  tiene_cuenta: boolean
+  cuenta_username: string | null
 }
+
+const emptyCuentaForm = { username: '', password: '' }
 
 const REGIMENES = [
   { value: '626', label: '626 — RESICO' },
@@ -36,6 +40,10 @@ export default function ProfesoresPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [loadingMas, setLoadingMas] = useState(false)
+  const [cuentaProfesor, setCuentaProfesor] = useState<Profesor | null>(null)
+  const [cuentaForm, setCuentaForm] = useState(emptyCuentaForm)
+  const [cuentaSaving, setCuentaSaving] = useState(false)
+  const [cuentaError, setCuentaError] = useState('')
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
@@ -83,6 +91,37 @@ export default function ProfesoresPage() {
       setFormError(err instanceof Error ? err.message : 'Error al guardar')
     } finally {
       setSaving(false)
+    }
+  }
+
+  function abrirCrearCuenta(p: Profesor, e: React.MouseEvent) {
+    e.stopPropagation()
+    setCuentaProfesor(p)
+    setCuentaForm({ username: '', password: '' })
+    setCuentaError('')
+  }
+
+  async function guardarCuenta(e: React.FormEvent) {
+    e.preventDefault()
+    if (!cuentaProfesor) return
+    setCuentaSaving(true)
+    setCuentaError('')
+    try {
+      await createUsuario({
+        username: cuentaForm.username,
+        nombre: cuentaProfesor.nombre,
+        correo: cuentaProfesor.correo,
+        password: cuentaForm.password,
+        rol: 'profesor',
+        profesor_id: cuentaProfesor.id,
+      })
+      toast('Cuenta de acceso creada correctamente')
+      setCuentaProfesor(null)
+      await load()
+    } catch (err: unknown) {
+      setCuentaError(err instanceof Error ? err.message : 'Error al crear la cuenta')
+    } finally {
+      setCuentaSaving(false)
     }
   }
 
@@ -183,7 +222,7 @@ export default function ProfesoresPage() {
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  {['RFC', 'Nombre', 'Correo', 'Régimen', 'Estado', ''].map(h => (
+                  {['RFC', 'Nombre', 'Correo', 'Régimen', 'Estado', 'Cuenta de portal', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -206,6 +245,22 @@ export default function ProfesoresPage() {
                         {p.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      {p.tiene_cuenta ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                          @{p.cuenta_username}
+                        </span>
+                      ) : isSuperAdmin() ? (
+                        <button onClick={e => abrirCrearCuenta(p, e)}
+                          className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 px-2 py-0.5 rounded-full font-medium transition-colors">
+                          Sin cuenta — crear
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                          Sin cuenta
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <span className="text-xs text-blue-500 font-medium">
                         Gestionar claves →
@@ -226,6 +281,54 @@ export default function ProfesoresPage() {
             </div>
           )}
         </div>
+
+        {/* Modal: crear cuenta de acceso al portal */}
+        {cuentaProfesor && (
+          <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50"
+            onClick={() => setCuentaProfesor(null)}>
+            <div className="bg-white rounded-xl border border-slate-200 p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+              <h3 className="font-semibold text-slate-700 mb-1">Crear cuenta de acceso</h3>
+              <p className="text-xs text-slate-500 mb-4">
+                Para <span className="font-medium">{cuentaProfesor.nombre}</span> ({cuentaProfesor.rfc}) — podrá entrar al portal del profesor con estas credenciales.
+              </p>
+              <form onSubmit={guardarCuenta} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Usuario</label>
+                  <input
+                    value={cuentaForm.username}
+                    onChange={e => setCuentaForm(f => ({ ...f, username: e.target.value }))}
+                    required autoFocus
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Contraseña</label>
+                  <input
+                    type="text" value={cuentaForm.password}
+                    onChange={e => setCuentaForm(f => ({ ...f, password: e.target.value }))}
+                    required minLength={6}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {cuentaError && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    {cuentaError}
+                  </p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button type="submit" disabled={cuentaSaving}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                    {cuentaSaving ? 'Creando…' : 'Crear cuenta'}
+                  </button>
+                  <button type="button" onClick={() => setCuentaProfesor(null)}
+                    className="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
