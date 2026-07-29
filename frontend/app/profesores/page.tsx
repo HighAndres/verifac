@@ -35,22 +35,37 @@ export default function ProfesoresPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [loadingMas, setLoadingMas] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const PAGINA = 50
+
   async function load(q = busqueda) {
     setLoading(true)
     try {
-      const params: Record<string, string> = {}
+      const params: Record<string, string> = { limit: String(PAGINA), skip: '0' }
       if (q) params.q = q
       const data = await getProfesores(params)
       setProfesores(data.items)
       setTotal(data.total)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function cargarMas() {
+    setLoadingMas(true)
+    try {
+      const params: Record<string, string> = { limit: String(PAGINA), skip: String(profesores.length) }
+      if (busqueda) params.q = busqueda
+      const data = await getProfesores(params)
+      setProfesores(prev => [...prev, ...data.items])
+    } finally {
+      setLoadingMas(false)
     }
   }
 
@@ -200,6 +215,15 @@ export default function ProfesoresPage() {
                 ))}
               </tbody>
             </table>
+          )}
+          {!loading && profesores.length > 0 && profesores.length < total && (
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-sm">
+              <span className="text-slate-400 text-xs">{profesores.length} de {total} profesores</span>
+              <button onClick={cargarMas} disabled={loadingMas}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                {loadingMas ? 'Cargando…' : 'Cargar más'}
+              </button>
+            </div>
           )}
         </div>
       </main>

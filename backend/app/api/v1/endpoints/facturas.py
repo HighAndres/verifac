@@ -134,9 +134,12 @@ def listar_facturas(
     if anio:
         q = q.filter(extract("year", Factura.fecha_emision) == anio)
 
+    from sqlalchemy import func
+
     total = q.count()
+    suma_total = q.with_entities(func.coalesce(func.sum(Factura.total), 0)).scalar()
     items = q.order_by(Factura.fecha_emision.desc()).offset(skip).limit(limit).all()
-    return {"total": total, "items": items}
+    return {"total": total, "suma_total": suma_total, "items": items}
 
 
 @router.get(

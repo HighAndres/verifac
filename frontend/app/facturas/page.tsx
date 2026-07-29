@@ -24,16 +24,31 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const ANIO_ACTUAL = new Date().getFullYear()
 const ANIOS = Array.from({ length: 5 }, (_, i) => ANIO_ACTUAL - i)
+const PAGINA = 50
+
+const ESTADOS = [
+  ['aprobada', 'Aprobadas'],
+  ['rechazada', 'Rechazadas'],
+  ['todas', 'Todas'],
+] as const
+type EstadoFiltro = typeof ESTADOS[number][0]
+const TITULOS: Record<EstadoFiltro, string> = {
+  aprobada: 'Facturas aprobadas',
+  rechazada: 'Facturas rechazadas',
+  todas: 'Todas las facturas',
+}
 
 export default function FacturasPage() {
   const router = useRouter()
   const toast = useToast()
   const [facturas, setFacturas] = useState<Factura[]>([])
   const [total, setTotal] = useState(0)
+  const [sumaTotal, setSumaTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMas, setLoadingMas] = useState(false)
   const [error, setError] = useState('')
 
-  const [origen, setOrigen] = useState<'xml' | 'portal'>('xml')  // correo | subida del profesor
+  const [estado, setEstado] = useState<EstadoFiltro>('aprobada')
   const [mes, setMes] = useState('')
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
   const [busqueda, setBusqueda] = useState('')
@@ -42,25 +57,43 @@ export default function FacturasPage() {
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
     load()
-  }, [origen, mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [estado, mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function armarParams(q: string, skip: number) {
+    // La validación por correo está apagada por ahora: solo se muestran las subidas por el profesor.
+    const params: Record<string, string> = { limit: String(PAGINA), skip: String(skip), origen: 'portal' }
+    if (estado !== 'todas') params.estado = estado
+    if (mes)    params.mes = mes
+    if (anio)   params.anio = anio
+    if (q)      params.q = q
+    return params
+  }
 
   async function load(q = busquedaRef.current) {
     setLoading(true); setError('')
     try {
-      // El revisor/admin solo ve facturas ya validadas (aprobadas), separadas por origen.
-      const params: Record<string, string> = { limit: '100', estado: 'aprobada', origen }
-      if (mes)    params.mes = mes
-      if (anio)   params.anio = anio
-      if (q)      params.q = q
-      const data = await getFacturas(params)
+      const data = await getFacturas(armarParams(q, 0))
       setFacturas(data.items)
       setTotal(data.total)
+      setSumaTotal(Number(data.suma_total ?? 0))
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cargar facturas'
       setError(msg)
       toast(msg, 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function cargarMas() {
+    setLoadingMas(true)
+    try {
+      const data = await getFacturas(armarParams(busquedaRef.current, facturas.length))
+      setFacturas(prev => [...prev, ...data.items])
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al cargar más facturas', 'error')
+    } finally {
+      setLoadingMas(false)
     }
   }
 
@@ -76,12 +109,11 @@ export default function FacturasPage() {
     load('')
   }
 
-  const fmt = (v: string | null) =>
-    v ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(v)) : '—'
+  const fmt = (v: string | number | null) =>
+    v != null && v !== '' ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(v)) : '—'
   const fmtDate = (v: string | null) =>
     v ? new Date(v).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
-  const totalImporte = facturas.reduce((s, f) => s + (f.total ? Number(f.total) : 0), 0)
   const hayFiltros = mes || anio !== String(ANIO_ACTUAL) || busqueda
 
   return (
@@ -90,8 +122,8 @@ export default function FacturasPage() {
       <main className="flex-1 p-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Facturas aprobadas</h2>
-            <p className="text-sm text-slate-500 mt-0.5">{total} validada{total !== 1 ? 's' : ''}</p>
+            <h2 className="text-2xl font-bold text-slate-800">{TITULOS[estado]}</h2>
+            <p className="text-sm text-slate-500 mt-0.5">{total} factura{total !== 1 ? 's' : ''}</p>
           </div>
           <Link href="/upload"
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
@@ -99,12 +131,12 @@ export default function FacturasPage() {
           </Link>
         </div>
 
-        {/* Secciones por origen */}
+        {/* Estado */}
         <div className="flex gap-1 mb-5 bg-slate-100 rounded-lg p-1 w-fit">
-          {([['xml', 'Por correo'], ['portal', 'Subidas por el profesor']] as const).map(([val, label]) => (
-            <button key={val} onClick={() => setOrigen(val)}
+          {ESTADOS.map(([val, label]) => (
+            <button key={val} onClick={() => setEstado(val)}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                origen === val ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                estado === val ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}>
               {label}
             </button>
@@ -191,9 +223,17 @@ export default function FacturasPage() {
                 </tbody>
               </table>
               <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-sm">
-                <span className="text-slate-400 text-xs">{facturas.length} de {total} facturas</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-400 text-xs">{facturas.length} de {total} facturas</span>
+                  {facturas.length < total && (
+                    <button onClick={cargarMas} disabled={loadingMas}
+                      className="px-3 py-1 border border-slate-200 rounded-lg text-xs bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50">
+                      {loadingMas ? 'Cargando…' : 'Cargar más'}
+                    </button>
+                  )}
+                </div>
                 <span className="font-semibold text-slate-700">
-                  Total: {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(totalImporte)}
+                  Total: {fmt(sumaTotal)}
                 </span>
               </div>
             </>

@@ -51,7 +51,60 @@ interface FacturaDetalle extends Factura {
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const ANIO_ACTUAL = new Date().getFullYear()
+const MES_ACTUAL = new Date().getMonth() + 1
 const ANIOS = Array.from({ length: 5 }, (_, i) => ANIO_ACTUAL - i)
+
+type EstadoMesActual = 'sin_subir' | 'rechazada' | 'aceptada' | 'pagada'
+
+// Línea de progreso de la factura del mes en curso: Aceptada → En proceso de pago → Pagada.
+// 'rechazada' y 'sin_subir' son estados previos a esa línea, se muestran aparte.
+function ProgresoMesActual({ estado, mesLabel }: { estado: EstadoMesActual; mesLabel: string }) {
+  const pasos = ['Aceptada', 'En proceso de pago', 'Pagada']
+  const doneCount = estado === 'pagada' ? 3 : estado === 'aceptada' ? 1 : 0
+  const rechazada = estado === 'rechazada'
+  const sinSubir = estado === 'sin_subir'
+
+  return (
+    <section className="bg-white rounded-xl border border-slate-200 p-5">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Tu factura de {mesLabel}</h2>
+      {sinSubir && (
+        <p className="text-sm text-slate-500 mb-4">Aún no subes tu factura de este mes.</p>
+      )}
+      {rechazada && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+          Tu factura de este mes fue rechazada. Corrige los campos marcados y vuelve a subirla.
+        </p>
+      )}
+      <div className="flex items-center">
+        {pasos.map((p, i) => {
+          const done = !rechazada && !sinSubir && i < doneCount
+          const active = !rechazada && !sinSubir && i === doneCount && doneCount < 3
+          const esRechazoAqui = rechazada && i === 0
+          return (
+            <div key={p} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center gap-1.5">
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-semibold shrink-0 ${
+                  esRechazoAqui ? 'bg-red-100 border-red-400 text-red-600'
+                  : done ? 'bg-emerald-500 border-emerald-500 text-white'
+                  : active ? 'bg-blue-50 border-blue-500 text-blue-700'
+                  : 'bg-slate-50 border-slate-300 text-slate-400'
+                }`}>
+                  {esRechazoAqui ? '✗' : done ? '✔' : i + 1}
+                </div>
+                <span className={`text-xs text-center max-w-[90px] ${
+                  done ? 'text-emerald-700 font-medium' : active ? 'text-blue-700 font-medium' : 'text-slate-400'
+                }`}>{p}</span>
+              </div>
+              {i < pasos.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-2 ${i < doneCount ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
 
 // Tabla de resultados de validación (los mismos checks que ve el revisor).
 function ChecksTabla({ f, onClose }: { f: FacturaDetalle; onClose?: () => void }) {
@@ -103,6 +156,8 @@ export default function PortalPage() {
   const [mes, setMes] = useState('')
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
   const [nombre, setNombre] = useState('')  // se fija en cliente para no romper la hidratación
+  const [facturaMesActual, setFacturaMesActual] = useState<Factura | null>(null)
+  const [cargandoMesActual, setCargandoMesActual] = useState(true)
   // Subir mi factura
   const [xmlFile, setXmlFile] = useState<File | null>(null)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
@@ -116,7 +171,20 @@ export default function PortalPage() {
     setNombre(getNombre())
     getMiPerfil().then(setPerfil).catch(() => {})
     getMisPagos().then(d => setPagos(d.items)).catch(() => {})
+    cargarMesActual()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function cargarMesActual() {
+    setCargandoMesActual(true)
+    try {
+      const d = await getMisFacturas({ mes: String(MES_ACTUAL), anio: String(ANIO_ACTUAL), limit: '1' })
+      setFacturaMesActual(d.items[0] ?? null)
+    } catch {
+      // silencioso: no bloquea el resto del portal
+    } finally {
+      setCargandoMesActual(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated() || !isProfesor()) return
@@ -153,6 +221,7 @@ export default function PortalPage() {
         res.estado === 'aprobada' ? 'success' : 'info'
       )
       load()
+      cargarMesActual()
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : 'Error al subir la factura', 'error')
     } finally {
@@ -206,6 +275,19 @@ export default function PortalPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        {/* Progreso de la factura del mes en curso */}
+        {!cargandoMesActual && (
+          <ProgresoMesActual
+            estado={
+              !facturaMesActual ? 'sin_subir'
+              : facturaMesActual.estado === 'rechazada' ? 'rechazada'
+              : pagos.some(p => p.mes === MES_ACTUAL && p.anio === ANIO_ACTUAL) ? 'pagada'
+              : 'aceptada'
+            }
+            mesLabel={`${MESES[MES_ACTUAL - 1]} ${ANIO_ACTUAL}`}
+          />
+        )}
+
         {/* Datos + documentos */}
         <section className="grid gap-4 sm:grid-cols-2">
           <div className="bg-white rounded-xl border border-slate-200 p-5">

@@ -53,4 +53,5 @@ class FacturaDetalleOut(FacturaOut):
 
 class FacturaListOut(BaseModel):
     total: int
+    suma_total: Decimal = Decimal("0")
     items: list[FacturaOut]
