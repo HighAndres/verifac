@@ -15,12 +15,20 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# El cotejo solo necesita encontrar el UUID; con las primeras páginas basta.
+# Acota el trabajo de pypdf (extract_text no tiene límite de tiempo propio) para
+# que un PDF real muy grande o mal formado no deje la petición colgada.
+_MAX_PAGINAS_COTEJO = 5
+
 
 def extraer_texto_pdf(pdf_bytes: bytes) -> str:
     try:
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(pdf_bytes))
-        return "\n".join((page.extract_text() or "") for page in reader.pages)
+        partes = []
+        for page in reader.pages[:_MAX_PAGINAS_COTEJO]:
+            partes.append(page.extract_text() or "")
+        return "\n".join(partes)
     except Exception as exc:  # PDF corrupto, cifrado, etc.
         logger.warning("No se pudo leer el PDF: %s", exc)
         return ""

@@ -84,10 +84,10 @@ export async function getMisPagos() {
   return handle(await fetch(`${API}/api/v1/portal/mis-pagos`, { headers: authHeaders() }))
 }
 
-export async function subirMiFactura(xml: File, pdf: File) {
+export async function subirMiFactura(xml: File, pdf?: File | null) {
   const fd = new FormData()
   fd.append('xml', xml)
-  fd.append('pdf', pdf)
+  if (pdf) fd.append('pdf', pdf)   // el PDF es opcional; la validación es sobre el XML
   return handle(await fetch(`${API}/api/v1/portal/subir-factura`, {
     method: 'POST',
     headers: authHeaders(),

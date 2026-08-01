@@ -96,20 +96,27 @@ def mis_pagos(
 
 
 @router.post("/subir-factura", response_model=FacturaDetalleOut, status_code=status.HTTP_201_CREATED,
-             summary="El profesor sube su XML + PDF, se valida y devuelve el resultado")
+             summary="El profesor sube su XML (el PDF es opcional), se valida y devuelve el resultado")
 def subir_factura(
     xml: UploadFile,
-    pdf: UploadFile,
+    pdf: Optional[UploadFile] = None,
     db: Session = Depends(get_db),
     profesor: Profesor = Depends(get_current_profesor),
 ):
     if not (xml.filename or "").lower().endswith(".xml"):
         raise HTTPException(status_code=422, detail="El archivo XML debe tener extensión .xml")
-    if not (pdf.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(status_code=422, detail="El archivo PDF debe tener extensión .pdf")
 
     xml_bytes = xml.file.read()
-    pdf_bytes = pdf.file.read()
+
+    # El PDF es opcional: la validación fiscal se hace 100% sobre el XML (que trae
+    # el timbre, el UUID y todos los datos). Si viene PDF, se usa solo para cotejar
+    # que corresponde al XML; su ausencia no reprueba la factura.
+    pdf_bytes = b""
+    if pdf is not None and (pdf.filename or "").strip():
+        if not pdf.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=422, detail="El archivo PDF debe tener extensión .pdf")
+        pdf_bytes = pdf.file.read()
+
     limite = settings.MAX_UPLOAD_MB * 1024 * 1024
     if len(xml_bytes) > limite or len(pdf_bytes) > limite:
         raise HTTPException(status_code=422, detail=f"Cada archivo debe pesar máximo {settings.MAX_UPLOAD_MB} MB")

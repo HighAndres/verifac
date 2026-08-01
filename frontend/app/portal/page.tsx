@@ -182,9 +182,9 @@ function ChecksTabla({ f, onClose }: { f: FacturaDetalle; onClose?: () => void }
 }
 
 // Selector de archivo con chip de confirmación (nombre + quitar), más claro que el input nativo solo.
-function ArchivoField({ label, accept, file, onChange, inputRef }: {
+function ArchivoField({ label, accept, file, onChange, inputRef, required = true }: {
   label: string; accept: string; file: File | null; onChange: (f: File | null) => void
-  inputRef?: React.RefObject<HTMLInputElement>
+  inputRef?: React.RefObject<HTMLInputElement>; required?: boolean
 }) {
   const fmtTamano = (bytes: number) =>
     bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -201,7 +201,7 @@ function ArchivoField({ label, accept, file, onChange, inputRef }: {
           </button>
         </div>
       ) : (
-        <input ref={inputRef} type="file" accept={accept} required
+        <input ref={inputRef} type="file" accept={accept} required={required}
           onChange={e => onChange(e.target.files?.[0] ?? null)}
           className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-sm file:bg-slate-50 hover:file:bg-slate-100" />
       )}
@@ -276,7 +276,7 @@ export default function PortalPage() {
 
   async function handleSubir(e: React.FormEvent) {
     e.preventDefault()
-    if (!xmlFile || !pdfFile) return
+    if (!xmlFile) return   // el PDF es opcional
     setSubiendo(true); setResultado(null); setDetalleVer(null)
     try {
       const res: FacturaDetalle = await subirMiFactura(xmlFile, pdfFile)
@@ -365,7 +365,8 @@ export default function PortalPage() {
           <div className="px-5 py-4 border-b border-slate-100">
             <h2 className="text-base font-semibold text-slate-800">Subir mi factura</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Sube el <b>XML</b> y el <b>PDF</b> de tu factura. El sistema la valida al instante y te dice si está bien o qué corregir.
+              Sube el <b>XML</b> de tu factura (CFDI 4.0). El sistema la valida al instante y te dice si está bien o qué corregir.
+              El <b>PDF</b> es opcional y solo sirve para dejarlo como comprobante.
             </p>
           </div>
           <form onSubmit={handleSubir} className="p-5">
@@ -378,13 +379,14 @@ export default function PortalPage() {
                 inputRef={xmlInputRef}
               />
               <ArchivoField
-                label="Archivo PDF"
+                label="Archivo PDF (opcional)"
                 accept=".pdf"
                 file={pdfFile}
                 onChange={setPdfFile}
+                required={false}
               />
             </div>
-            <button type="submit" disabled={subiendo || !xmlFile || !pdfFile}
+            <button type="submit" disabled={subiendo || !xmlFile}
               className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
               {subiendo ? 'Validando…' : 'Validar y enviar'}
             </button>
