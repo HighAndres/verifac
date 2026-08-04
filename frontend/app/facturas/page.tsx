@@ -60,8 +60,7 @@ export default function FacturasPage() {
   }, [estado, mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function armarParams(q: string, skip: number) {
-    // La validación por correo está apagada por ahora: solo se muestran las subidas por el profesor.
-    const params: Record<string, string> = { limit: String(PAGINA), skip: String(skip), origen: 'portal' }
+    const params: Record<string, string> = { limit: String(PAGINA), skip: String(skip) }
     if (estado !== 'todas') params.estado = estado
     if (mes)    params.mes = mes
     if (anio)   params.anio = anio

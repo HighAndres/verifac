@@ -24,7 +24,6 @@ interface FilaPago {
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-const METODOS = ['Transferencia', 'Cheque', 'Efectivo', 'Otro']
 const HOY = new Date()
 const ANIO_ACTUAL = HOY.getFullYear()
 const ANIOS = Array.from({ length: 5 }, (_, i) => ANIO_ACTUAL - i)
@@ -91,13 +90,14 @@ export default function PagosPage() {
     }
   }
 
-  // Al marcar el check: si se activa, precarga monto sugerido y fecha de hoy; guarda de inmediato.
+  // Al marcar el check: precarga fecha de hoy (si no había); método y monto siempre
+  // se fijan a Transferencia y al total de la factura del XML — no son editables.
   function togglePagada(fila: FilaPago, valor: boolean) {
     const patch: Partial<FilaPago> = { pagada: valor }
     if (valor) {
       if (!fila.fecha_pago) patch.fecha_pago = new Date().toISOString().slice(0, 10)
-      if (fila.monto_pagado == null) patch.monto_pagado = fila.factura_total ?? fila.esperado ?? null
-      if (!fila.metodo_pago) patch.metodo_pago = 'Transferencia'
+      patch.monto_pagado = fila.factura_total ?? fila.esperado ?? null
+      patch.metodo_pago = 'Transferencia'
     }
     const actualizada = { ...fila, ...patch }
     setFila(fila.profesor_id, patch)
@@ -195,19 +195,11 @@ export default function PagosPage() {
                           onBlur={() => f.pagada && persistir(f)}
                           className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white disabled:bg-slate-50 disabled:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </td>
-                      <td className="px-4 py-3">
-                        <select value={f.metodo_pago ?? ''} disabled={!f.pagada || guardando}
-                          onChange={e => { setFila(f.profesor_id, { metodo_pago: e.target.value || null }); persistir({ ...f, metodo_pago: e.target.value || null }) }}
-                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white disabled:bg-slate-50 disabled:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                          <option value="">—</option>
-                          {METODOS.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {f.pagada ? 'Transferencia' : '—'}
                       </td>
-                      <td className="px-4 py-3">
-                        <input type="number" step="0.01" value={f.monto_pagado ?? ''} disabled={!f.pagada || guardando}
-                          onChange={e => setFila(f.profesor_id, { monto_pagado: e.target.value === '' ? null : Number(e.target.value) })}
-                          onBlur={() => f.pagada && persistir(f)}
-                          className="w-28 border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white tabular-nums disabled:bg-slate-50 disabled:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <td className="px-4 py-3 text-slate-600 tabular-nums text-xs">
+                        {f.pagada ? fmt(f.factura_total) : '—'}
                       </td>
                     </tr>
                   )
