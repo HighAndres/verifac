@@ -1,3 +1,4 @@
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -18,6 +19,7 @@ from app.services import audit
 router = APIRouter()
 
 _TIPOS_VALIDOS = {"servicio", "unidad"}
+_CON_PUNTO_DECIMAL_RE = re.compile(r"\d\.\d")
 
 
 def _get_or_404(db: Session, clave_id: UUID) -> CatalogoClave:
@@ -50,6 +52,9 @@ def crear_clave(
 ):
     if payload.tipo not in _TIPOS_VALIDOS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="tipo debe ser 'servicio' o 'unidad'")
+    if _CON_PUNTO_DECIMAL_RE.search(payload.clave):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                             detail=f"La clave no puede tener punto decimal: {payload.clave}")
     if db.query(CatalogoClave).filter(CatalogoClave.clave == payload.clave).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Clave ya existe en catálogo")
     obj = CatalogoClave(**payload.model_dump())
@@ -83,6 +88,9 @@ def crear_claves_lote(
             continue
         if item.tipo not in _TIPOS_VALIDOS:
             errores.append(f"{clave}: tipo debe ser 'servicio' o 'unidad'")
+            continue
+        if _CON_PUNTO_DECIMAL_RE.search(clave):
+            errores.append(f"{clave}: no puede tener punto decimal (revisa el formato de esa columna/celda)")
             continue
         if clave in existentes or clave in vistas_en_lote:
             omitidas += 1

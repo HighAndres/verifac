@@ -23,6 +23,7 @@ from app.services.excel_montos_parser import normalizar_nombre
 
 _RFC_RE = re.compile(r"^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$")
 _REGIMENES = {"626", "612", "603"}
+_CON_PUNTO_DECIMAL_RE = re.compile(r"\d\.\d")
 
 # Encabezados aceptados por campo (comparados con normalizar_nombre → mayúsculas sin acentos).
 _COLS = {
@@ -108,6 +109,13 @@ def importar_profesores(contenido: bytes, db: Session) -> ResultadoImport:
             continue
         if regimen not in _REGIMENES:
             res.errores.append({"fila": n, "motivo": f"Régimen inválido: {regimen or '(vacío)'} (debe ser 626/612/603)"})
+            continue
+        if clave_serv and _CON_PUNTO_DECIMAL_RE.search(clave_serv):
+            res.errores.append({
+                "fila": n,
+                "motivo": f"Clave prod/serv con punto decimal: {clave_serv} (revisa el formato de esa columna en el Excel, "
+                          "seguramente quedó como número en vez de texto)",
+            })
             continue
 
         # ── Upsert del profesor por RFC ──────────────────────────────────────

@@ -77,6 +77,17 @@ def test_rfc_invalido_reporta_error(db):
     assert res.errores[0]["fila"] == 2
 
 
+def test_clave_serv_con_punto_decimal_reporta_error(db):
+    # Simula el caso real: Excel/Sheets exporta la columna de clave como número
+    # decimal (86131600.0) en vez de texto.
+    data = _xlsx([["JUAN PEREZ LOPEZ", "PELJ850101AA1", "juan@correo.com", "612", "86131600.0", "Música y drama"]])
+    res = importar_profesores(data, db)
+    assert res.creados == 0 and len(res.errores) == 1
+    assert "punto decimal" in res.errores[0]["motivo"]
+    assert db.query(CatalogoClave).filter(CatalogoClave.clave == "86131600.0").first() is None
+    assert db.query(Profesor).filter(Profesor.rfc == "PELJ850101AA1").first() is None
+
+
 def test_falta_columna_obligatoria(db):
     import pytest
     wb = openpyxl.Workbook()

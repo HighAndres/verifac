@@ -44,3 +44,24 @@ def test_lote_crea_evita_duplicados_y_reporta_errores(client, db):
 
     nuevas = {c.clave for c in db.query(CatalogoClave).filter(CatalogoClave.clave.like("TESTLOTE%")).all()}
     assert nuevas == {"TESTLOTE01", "TESTLOTE02", "TESTLOTE03"}
+
+
+def test_lote_rechaza_clave_con_punto_decimal(client, db):
+    headers = _rev_headers(db)
+    payload = {"items": [
+        {"clave": "86131600.0", "descripcion": "Música y drama", "tipo": "servicio", "activo": True},
+    ]}
+    res = client.post("/api/v1/catalogo-claves/lote", json=payload, headers=headers)
+    assert res.status_code == 201, res.text
+    data = res.json()
+    assert data["creadas"] == 0 and len(data["errores"]) == 1
+    assert "punto decimal" in data["errores"][0]
+    assert db.query(CatalogoClave).filter(CatalogoClave.clave == "86131600.0").first() is None
+
+
+def test_crear_clave_individual_rechaza_punto_decimal(client, db):
+    headers = _rev_headers(db)
+    payload = {"clave": "90141702.0", "descripcion": "Ligas deportivas", "tipo": "servicio", "activo": True}
+    res = client.post("/api/v1/catalogo-claves", json=payload, headers=headers)
+    assert res.status_code == 422, res.text
+    assert "punto decimal" in res.json()["detail"]
