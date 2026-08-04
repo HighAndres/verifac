@@ -27,3 +27,13 @@ class CatalogoClaveOut(CatalogoClaveBase):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class CatalogoClaveLoteCreate(BaseModel):
+    items: list[CatalogoClaveCreate]
+
+
+class CatalogoClaveLoteOut(BaseModel):
+    creadas: int
+    existentes: int
+    errores: list[str]

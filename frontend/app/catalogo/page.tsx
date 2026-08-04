@@ -34,6 +34,13 @@ export default function CatalogoPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const [showLote, setShowLote] = useState(false)
+  const [loteTipo, setLoteTipo] = useState('servicio')
+  const [loteTexto, setLoteTexto] = useState('')
+  const [loteSaving, setLoteSaving] = useState(false)
+  const [loteResultado, setLoteResultado] = useState('')
+  const [loteError, setLoteError] = useState('')
+
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
     load()
@@ -50,6 +57,7 @@ export default function CatalogoPage() {
   }
 
   function iniciarNueva() {
+    setShowLote(false)
     setEditId(null)
     setForm(emptyForm)
     setError('')
@@ -57,6 +65,7 @@ export default function CatalogoPage() {
   }
 
   function iniciarEdicion(c: Clave) {
+    setShowLote(false)
     setEditId(c.id)
     setForm({ clave: c.clave, descripcion: c.descripcion, tipo: c.tipo, activo: c.activo })
     setError('')
@@ -95,6 +104,52 @@ export default function CatalogoPage() {
     }
   }
 
+  function iniciarLote() {
+    setShowForm(false)
+    setLoteTexto('')
+    setLoteResultado('')
+    setLoteError('')
+    setShowLote(true)
+  }
+
+  async function guardarLote(e: React.FormEvent) {
+    e.preventDefault()
+    const items = loteTexto
+      .split('\n')
+      .map(linea => linea.trim())
+      .filter(Boolean)
+      .map(linea => {
+        const idx = linea.indexOf(',')
+        const clave = (idx === -1 ? linea : linea.slice(0, idx)).trim()
+        const descripcion = (idx === -1 ? '' : linea.slice(idx + 1)).trim()
+        return { clave, descripcion: descripcion || clave, tipo: loteTipo, activo: true }
+      })
+    if (items.length === 0) { setLoteError('Pega al menos una clave.'); return }
+
+    setLoteSaving(true)
+    setLoteError('')
+    setLoteResultado('')
+    try {
+      const res = await fetch(`${API}/api/v1/catalogo-claves/lote`, {
+        method: 'POST',
+        headers: authH(),
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail ?? 'Error al cargar el lote')
+      const partes = [`${data.creadas} clave${data.creadas === 1 ? '' : 's'} agregada${data.creadas === 1 ? '' : 's'}`]
+      if (data.existentes > 0) partes.push(`${data.existentes} ya existían (omitidas)`)
+      if (data.errores?.length > 0) partes.push(`${data.errores.length} con error: ${data.errores.join('; ')}`)
+      setLoteResultado(partes.join(' — '))
+      setLoteTexto('')
+      await load()
+    } catch (err: unknown) {
+      setLoteError(err instanceof Error ? err.message : 'Error al cargar el lote')
+    } finally {
+      setLoteSaving(false)
+    }
+  }
+
   async function toggleActivo(c: Clave) {
     await fetch(`${API}/api/v1/catalogo-claves/${c.id}`, {
       method: 'PATCH',
@@ -119,13 +174,71 @@ export default function CatalogoPage() {
               Claves globales del SAT — se aplican a todos los profesores salvo que tengan asignación específica
             </p>
           </div>
-          <button
-            onClick={iniciarNueva}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            + Nueva clave
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={iniciarLote}
+              className="bg-white border border-slate-200 hover:border-slate-400 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              Cargar varias
+            </button>
+            <button
+              onClick={iniciarNueva}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              + Nueva clave
+            </button>
+          </div>
         </div>
+
+        {/* Carga en lote */}
+        {showLote && (
+          <div className="mb-6 bg-white border border-slate-200 rounded-xl p-6">
+            <h3 className="font-semibold text-slate-700 mb-1">Cargar varias claves</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Una clave por línea, formato <code className="bg-slate-100 px-1 rounded">clave,descripción</code>.
+              Las que ya existan en el catálogo se omiten automáticamente.
+            </p>
+            <form onSubmit={guardarLote} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Tipo (aplica a todas las líneas)</label>
+                <select
+                  value={loteTipo}
+                  onChange={e => setLoteTipo(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="servicio">Servicio (ClaveProdServ)</option>
+                  <option value="unidad">Unidad (ClaveUnidad)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Claves</label>
+                <textarea
+                  value={loteTexto}
+                  onChange={e => setLoteTexto(e.target.value)}
+                  rows={6}
+                  placeholder={'90141702,Servicios de enseñanza universitaria y de posgrado\n90141500,Servicios de instrucción\n86131500,Servicios de investigación educativa'}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {loteError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{loteError}</p>
+              )}
+              {loteResultado && (
+                <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{loteResultado}</p>
+              )}
+              <div className="flex gap-2">
+                <button type="submit" disabled={loteSaving}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                  {loteSaving ? 'Cargando…' : 'Cargar todas'}
+                </button>
+                <button type="button" onClick={() => setShowLote(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cerrar
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Formulario alta / edición */}
         {showForm && (
