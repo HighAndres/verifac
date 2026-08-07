@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -23,7 +23,7 @@ class Pago(Base):
     pagada = Column(Boolean, default=False, nullable=False)
     fecha_pago = Column(Date, nullable=True)
     metodo_pago = Column(String(40), nullable=True)
-    monto_pagado = Column(Numeric(12, 2), nullable=True)
+    incidencia = Column(String(40), nullable=True)   # motivo de retraso, independiente de `pagada`
     registrado_por = Column(String(50), nullable=True)   # username del revisor que marcó
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

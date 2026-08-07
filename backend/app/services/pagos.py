@@ -79,7 +79,7 @@ def lista_mensual(db: Session, mes: int, anio: int) -> list[dict]:
             "pagada": bool(pago.pagada) if pago else False,
             "fecha_pago": pago.fecha_pago.isoformat() if pago and pago.fecha_pago else None,
             "metodo_pago": pago.metodo_pago if pago else None,
-            "monto_pagado": _fmt(pago.monto_pagado) if pago else None,
+            "incidencia": pago.incidencia if pago else None,
             "registrado_por": pago.registrado_por if pago else None,
         })
     return filas

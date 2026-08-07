@@ -88,7 +88,6 @@ def mis_pagos(
                 "anio": p.anio,
                 "fecha_pago": p.fecha_pago.isoformat() if p.fecha_pago else None,
                 "metodo_pago": p.metodo_pago,
-                "monto_pagado": float(p.monto_pagado) if p.monto_pagado is not None else None,
             }
             for p in pagos
         ]

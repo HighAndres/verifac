@@ -33,7 +33,6 @@ interface Pago {
   anio: number
   fecha_pago: string | null
   metodo_pago: string | null
-  monto_pagado: number | null
 }
 
 interface Detalle {
@@ -532,7 +531,7 @@ export default function PortalPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50">
                   <tr>
-                    {['Periodo', 'Fecha de pago', 'Método', 'Monto pagado'].map(h => (
+                    {['Periodo', 'Fecha de pago', 'Método'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -543,7 +542,6 @@ export default function PortalPage() {
                       <td className="px-4 py-3 text-slate-700">{fmtPeriodo(p.mes, p.anio)}</td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(p.fecha_pago)}</td>
                       <td className="px-4 py-3 text-slate-700">{p.metodo_pago ?? '—'}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold">{fmt(p.monto_pagado)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -18,9 +18,11 @@ interface FilaPago {
   pagada: boolean
   fecha_pago: string | null
   metodo_pago: string | null
-  monto_pagado: number | null
+  incidencia: string | null
   registrado_por: string | null
 }
+
+const INCIDENCIAS = ['Error en factura', 'Trámite en SAT', 'Error en cuenta bancaria']
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -72,13 +74,13 @@ export default function PagosPage() {
         pagada: fila.pagada,
         fecha_pago: fila.pagada ? fila.fecha_pago : null,
         metodo_pago: fila.pagada ? fila.metodo_pago : null,
-        monto_pagado: fila.pagada ? fila.monto_pagado : null,
+        incidencia: fila.incidencia,
       })
       setFila(fila.profesor_id, {
         pagada: guardado.pagada,
         fecha_pago: guardado.fecha_pago,
         metodo_pago: guardado.metodo_pago,
-        monto_pagado: guardado.monto_pagado,
+        incidencia: guardado.incidencia,
         registrado_por: guardado.registrado_por,
       })
       toast('Pago actualizado', 'success')
@@ -90,15 +92,22 @@ export default function PagosPage() {
     }
   }
 
-  // Al marcar el check: precarga fecha de hoy (si no había); método y monto siempre
-  // se fijan a Transferencia y al total de la factura del XML — no son editables.
+  // Al marcar el check: precarga fecha de hoy (si no había); método siempre se fija
+  // a Transferencia — no es editable.
   function togglePagada(fila: FilaPago, valor: boolean) {
     const patch: Partial<FilaPago> = { pagada: valor }
     if (valor) {
       if (!fila.fecha_pago) patch.fecha_pago = new Date().toISOString().slice(0, 10)
-      patch.monto_pagado = fila.factura_total ?? fila.esperado ?? null
       patch.metodo_pago = 'Transferencia'
     }
+    const actualizada = { ...fila, ...patch }
+    setFila(fila.profesor_id, patch)
+    persistir(actualizada)
+  }
+
+  // La incidencia es independiente de "Pagada": puede registrarse en cualquier momento.
+  function cambiarIncidencia(fila: FilaPago, valor: string) {
+    const patch: Partial<FilaPago> = { incidencia: valor || null }
     const actualizada = { ...fila, ...patch }
     setFila(fila.profesor_id, patch)
     persistir(actualizada)
@@ -157,7 +166,7 @@ export default function PagosPage() {
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  {['Profesor', 'Estado', 'Factura del mes', 'Esperado', 'Pagada', 'Fecha de pago', 'Método', 'Monto pagado'].map(h => (
+                  {['Profesor', 'Estado', 'Factura del mes', 'Esperado', 'Pagada', 'Fecha de pago', 'Método', 'Incidencia'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -198,8 +207,13 @@ export default function PagosPage() {
                       <td className="px-4 py-3 text-xs text-slate-600">
                         {f.pagada ? 'Transferencia' : '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-600 tabular-nums text-xs">
-                        {f.pagada ? fmt(f.factura_total) : '—'}
+                      <td className="px-4 py-3">
+                        <select value={f.incidencia ?? ''} disabled={guardando}
+                          onChange={e => cambiarIncidencia(f, e.target.value)}
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">—</option>
+                          {INCIDENCIAS.map(i => <option key={i} value={i}>{i}</option>)}
+                        </select>
                       </td>
                     </tr>
                   )

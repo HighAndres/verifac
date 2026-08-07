@@ -51,7 +51,7 @@ def test_put_pagos_crea_y_actualiza(client, db):
     # Crear
     r = client.put("/api/v1/pagos", headers=headers, json={
         "profesor_id": str(p.id), "mes": 6, "anio": 2026,
-        "pagada": True, "fecha_pago": "2026-06-30", "metodo_pago": "Transferencia", "monto_pagado": 5000,
+        "pagada": True, "fecha_pago": "2026-06-30", "metodo_pago": "Transferencia",
     })
     assert r.status_code == 200
     assert r.json()["pagada"] is True
@@ -96,7 +96,7 @@ def test_portal_mis_pagos_solo_propios_y_pagados(client, db):
     p1 = _profesor(db, "EEE050505EE5", "Profe E", "e@example.com")
     p2 = _profesor(db, "FFF060606FF6", "Profe F", "f@example.com")
     _usuario(db, "profe_e", "profesor", p1.id)
-    db.add(Pago(profesor_id=p1.id, mes=5, anio=2026, pagada=True, metodo_pago="Cheque", monto_pagado=800))
+    db.add(Pago(profesor_id=p1.id, mes=5, anio=2026, pagada=True, metodo_pago="Cheque"))
     db.add(Pago(profesor_id=p1.id, mes=6, anio=2026, pagada=False))  # no pagado: no aparece
     db.add(Pago(profesor_id=p2.id, mes=5, anio=2026, pagada=True))   # de otro profesor
     db.flush()
@@ -106,6 +106,37 @@ def test_portal_mis_pagos_solo_propios_y_pagados(client, db):
     items = r.json()["items"]
     assert len(items) == 1
     assert items[0]["mes"] == 5 and items[0]["metodo_pago"] == "Cheque"
+
+
+def test_incidencia_es_independiente_de_pagada(client, db):
+    headers = _rev_headers(db)
+    p = _profesor(db, "HHH080808HH8", "Profe H", "h@example.com")
+
+    # Se puede registrar una incidencia sin marcar como pagada.
+    r = client.put("/api/v1/pagos", headers=headers, json={
+        "profesor_id": str(p.id), "mes": 6, "anio": 2026,
+        "pagada": False, "incidencia": "Trámite en SAT",
+    })
+    assert r.status_code == 200
+    assert r.json()["pagada"] is False
+    assert r.json()["incidencia"] == "Trámite en SAT"
+
+    # Marcar como pagada no borra la incidencia (son independientes).
+    r2 = client.put("/api/v1/pagos", headers=headers, json={
+        "profesor_id": str(p.id), "mes": 6, "anio": 2026,
+        "pagada": True, "fecha_pago": "2026-06-30", "metodo_pago": "Transferencia",
+        "incidencia": "Trámite en SAT",
+    })
+    assert r2.status_code == 200
+    assert r2.json()["pagada"] is True
+    assert r2.json()["incidencia"] == "Trámite en SAT"
+
+    # Valor fuera del catálogo se rechaza.
+    r3 = client.put("/api/v1/pagos", headers=headers, json={
+        "profesor_id": str(p.id), "mes": 6, "anio": 2026,
+        "pagada": False, "incidencia": "Motivo inventado",
+    })
+    assert r3.status_code == 422
 
 
 def test_profesor_no_puede_marcar_pagos(client, db):

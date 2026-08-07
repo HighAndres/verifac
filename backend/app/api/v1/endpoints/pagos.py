@@ -1,6 +1,5 @@
 """Pantalla de Pagos (revisor + superadmin): marca de pago por profesor y mes."""
 from datetime import date
-from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -19,6 +18,7 @@ from app.services.pagos import lista_mensual
 router = APIRouter()
 
 _METODOS = {"Transferencia", "Cheque", "Efectivo", "Otro"}
+_INCIDENCIAS = {"Error en factura", "Trámite en SAT", "Error en cuenta bancaria"}
 
 
 class PagoUpsert(BaseModel):
@@ -28,7 +28,7 @@ class PagoUpsert(BaseModel):
     pagada: bool = False
     fecha_pago: Optional[date] = None
     metodo_pago: Optional[str] = None
-    monto_pagado: Optional[Decimal] = None
+    incidencia: Optional[str] = None
 
 
 @router.get("")
@@ -50,6 +50,8 @@ def guardar_pago(
         raise HTTPException(status_code=422, detail="mes fuera de rango")
     if payload.metodo_pago and payload.metodo_pago not in _METODOS:
         raise HTTPException(status_code=422, detail=f"metodo_pago debe ser uno de: {sorted(_METODOS)}")
+    if payload.incidencia and payload.incidencia not in _INCIDENCIAS:
+        raise HTTPException(status_code=422, detail=f"incidencia debe ser una de: {sorted(_INCIDENCIAS)}")
     if not db.query(Profesor).filter(Profesor.id == payload.profesor_id).first():
         raise HTTPException(status_code=404, detail="Profesor no encontrado")
 
@@ -63,15 +65,15 @@ def guardar_pago(
         db.add(pago)
 
     pago.pagada = payload.pagada
-    # Si se desmarca como pagada, se limpian los detalles para no dejar datos huérfanos.
+    # Si se desmarca como pagada, se limpian fecha/método para no dejar datos huérfanos.
+    # La incidencia es independiente de "pagada" (puede registrarse en cualquier momento).
     if payload.pagada:
         pago.fecha_pago = payload.fecha_pago
         pago.metodo_pago = payload.metodo_pago
-        pago.monto_pagado = payload.monto_pagado
     else:
         pago.fecha_pago = None
         pago.metodo_pago = None
-        pago.monto_pagado = None
+    pago.incidencia = payload.incidencia
     pago.registrado_por = user.username
 
     audit.log(db, username=user.username, rol=user.rol, accion="UPDATE",
@@ -87,6 +89,6 @@ def guardar_pago(
         "pagada": pago.pagada,
         "fecha_pago": pago.fecha_pago.isoformat() if pago.fecha_pago else None,
         "metodo_pago": pago.metodo_pago,
-        "monto_pagado": float(pago.monto_pagado) if pago.monto_pagado is not None else None,
+        "incidencia": pago.incidencia,
         "registrado_por": pago.registrado_por,
     }
