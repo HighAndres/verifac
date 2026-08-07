@@ -67,11 +67,13 @@ def test_put_pagos_crea_y_actualiza(client, db):
     assert db.query(Pago).filter(Pago.profesor_id == p.id, Pago.mes == 6, Pago.anio == 2026).count() == 1
 
 
-def test_get_pagos_lista_todos_activos(client, db):
+def test_get_pagos_lista_incluye_inactivos(client, db):
+    # Se listan TODOS los profesores del catálogo (activos e inactivos), igual que
+    # la pantalla de Profesores, para no ocultar a nadie silenciosamente.
     headers = _rev_headers(db)
     p1 = _profesor(db, "BBB020202BB2", "Profe B", "b@example.com")
     _profesor(db, "CCC030303CC3", "Profe C", "c@example.com")
-    _profesor(db, "DDD040404DD4", "Profe D", "d@example.com", activo=False)  # inactivo: no aparece
+    _profesor(db, "DDD040404DD4", "Profe D", "d@example.com", activo=False)  # inactivo: sigue apareciendo
     # factura de contexto para p1
     db.add(Factura(uuid_cfdi="U-B-1", rfc_emisor=p1.rfc, estado="aprobada", total=1234,
                    fecha_emision=datetime(2026, 6, 10, tzinfo=timezone.utc), origen="xml"))
@@ -81,12 +83,13 @@ def test_get_pagos_lista_todos_activos(client, db):
     assert r.status_code == 200
     items = r.json()["items"]
     nombres = {i["nombre"] for i in items}
-    assert {"Profe B", "Profe C"} <= nombres   # ambos activos aparecen
-    assert "Profe D" not in nombres            # el inactivo queda fuera
+    assert {"Profe B", "Profe C", "Profe D"} <= nombres   # activos e inactivos aparecen
     fila_b = next(i for i in items if i["nombre"] == "Profe B")
     assert fila_b["factura_estado"] == "aprobada"
     assert fila_b["factura_total"] == 1234.0
     assert fila_b["pagada"] is False
+    fila_d = next(i for i in items if i["nombre"] == "Profe D")
+    assert fila_d["activo"] is False
 
 
 def test_portal_mis_pagos_solo_propios_y_pagados(client, db):

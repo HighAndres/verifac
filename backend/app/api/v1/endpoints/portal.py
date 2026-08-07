@@ -66,7 +66,7 @@ def mis_facturas(
         q = q.filter(extract("year", Factura.fecha_emision) == anio)
 
     total = q.count()
-    items = q.order_by(Factura.fecha_emision.desc()).offset(skip).limit(limit).all()
+    items = q.order_by(Factura.created_at.desc()).offset(skip).limit(limit).all()
     return {"total": total, "items": items}
 
 

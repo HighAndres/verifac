@@ -96,3 +96,28 @@ def test_profesor_sin_ligar_da_403(client, db):
     _usuario(db, "profe_suelto", "profesor", profesor_id=None)
     r = client.get("/api/v1/portal/mi-perfil", headers=_auth("profe_suelto"))
     assert r.status_code == 403
+
+
+def test_mis_facturas_ordena_por_creacion_no_por_fecha_emision(client, db):
+    # Caso real: se sube una factura, se rechaza, y luego se corrige y se vuelve a
+    # subir (UUID distinto). La corregida se crea DESPUÉS pero puede traer una
+    # fecha_emision del XML igual o anterior a la rechazada. La barra del portal
+    # debe reflejar siempre la más reciente por fecha de PROCESO, no la del XML.
+    p = _profesor(db, "FFF060606FF6", "Profe Seis", "seis@example.com")
+    _usuario(db, "profe6", "profesor", p.id)
+    _factura(db, p.rfc, "UUID-VIEJA-RECHAZADA", estado="rechazada",
+             fecha=datetime(2026, 6, 20, tzinfo=timezone.utc))
+    vieja = db.query(Factura).filter(Factura.uuid_cfdi == "UUID-VIEJA-RECHAZADA").first()
+    vieja.created_at = datetime(2026, 6, 21, 10, 0, tzinfo=timezone.utc)
+
+    nueva = _factura(db, p.rfc, "UUID-NUEVA-APROBADA", estado="aprobada",
+                      fecha=datetime(2026, 6, 15, tzinfo=timezone.utc))
+    nueva.created_at = datetime(2026, 6, 22, 9, 0, tzinfo=timezone.utc)
+    db.flush()
+
+    r = client.get("/api/v1/portal/mis-facturas", headers=_auth("profe6"),
+                    params={"mes": 6, "anio": 2026, "limit": 1})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["items"][0]["uuid_cfdi"] == "UUID-NUEVA-APROBADA"
+    assert data["items"][0]["estado"] == "aprobada"

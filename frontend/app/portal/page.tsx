@@ -243,7 +243,11 @@ export default function PortalPage() {
   async function cargarMesActual() {
     setCargandoMesActual(true)
     try {
-      const d = await getMisFacturas({ mes: String(MES_ACTUAL), anio: String(ANIO_ACTUAL), limit: '1' })
+      // Sin filtro de mes/año: la factura más reciente del profesor, sea cual sea su
+      // período. Un pago se marca semanas después de subida la factura, ya en el mes
+      // calendario siguiente — anclar esto al "mes de hoy" hacía que la barra se
+      // reseteara a "sin subir" justo antes de llegar a "Pagada".
+      const d = await getMisFacturas({ limit: '1' })
       setFacturaMesActual(d.items[0] ?? null)
     } catch {
       // silencioso: no bloquea el resto del portal
@@ -314,6 +318,17 @@ export default function PortalPage() {
   }
   const fmtPeriodo = (mes: number, anio: number) => `${MESES[mes - 1]} ${anio}`
 
+  // Período real de la factura más reciente (según su fecha de emisión), no el mes
+  // calendario de hoy — para no perder de vista una factura ya subida el mes pasado
+  // que sigue en proceso de pago. Sin factura aún, se usa el mes actual (para invitar
+  // a subir la de este mes).
+  const periodoFactura = (() => {
+    const v = facturaMesActual?.fecha_emision
+    if (!v) return { mes: MES_ACTUAL, anio: ANIO_ACTUAL }
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + 'T00:00:00') : new Date(v)
+    return { mes: d.getMonth() + 1, anio: d.getFullYear() }
+  })()
+
   function irASubir() {
     subirRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     xmlInputRef.current?.focus()
@@ -346,16 +361,16 @@ export default function PortalPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-        {/* Progreso de la factura del mes en curso */}
+        {/* Progreso de la factura más reciente del profesor (su período real, no el mes de hoy) */}
         {!cargandoMesActual && (
           <ProgresoMesActual
             estado={
               !facturaMesActual ? 'sin_subir'
               : facturaMesActual.estado === 'rechazada' ? 'rechazada'
-              : pagos.some(p => p.mes === MES_ACTUAL && p.anio === ANIO_ACTUAL) ? 'pagada'
+              : pagos.some(p => p.mes === periodoFactura.mes && p.anio === periodoFactura.anio) ? 'pagada'
               : 'aceptada'
             }
-            mesLabel={`${MESES[MES_ACTUAL - 1]} ${ANIO_ACTUAL}`}
+            mesLabel={`${MESES[periodoFactura.mes - 1]} ${periodoFactura.anio}`}
             onSubirClick={irASubir}
           />
         )}

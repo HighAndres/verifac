@@ -316,7 +316,24 @@ def subir_montos_mensuales(
             ),
         )
 
-    # ── Guard 3: advertir si el periodo es futuro (año mal tecleado, etc.) ─────────
+    # ── Guard 3: régimen fiscal con formato inválido (columna VARCHAR(3) en BD) ────
+    regimenes_malos = [
+        f"fila {f.fila} ({f.nombre_emisor}): {f.regimen_fiscal}"
+        for f in filas
+        if len(f.regimen_fiscal) > 3
+    ]
+    if regimenes_malos:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Régimen fiscal inválido (revisa que esa columna del Excel esté como "
+                "texto, no como número; ej. '626' y no '626.0'). Filas en conflicto: "
+                + "; ".join(regimenes_malos[:5])
+                + (f" (+{len(regimenes_malos) - 5} más)" if len(regimenes_malos) > 5 else "")
+            ),
+        )
+
+    # ── Guard 4: advertir si el periodo es futuro (año mal tecleado, etc.) ─────────
     hoy = datetime.now(timezone.utc)
     periodo_futuro = (anio, mes) > (hoy.year, hoy.month)
 
