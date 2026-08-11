@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { useToast } from '@/components/Toast'
-import { getMontosMensuales, uploadMontosMensuales, revalidarMes, isAuthenticated } from '@/lib/api'
+import { getMontosMensuales, uploadMontosMensuales, revalidarMes, isAuthenticated, isSuperAdmin } from '@/lib/api'
 
 interface MontoItem {
   id: string
@@ -22,6 +22,7 @@ interface MontoItem {
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const ANIO_ACTUAL = new Date().getFullYear()
+const MES_ACTUAL = new Date().getMonth() + 1
 const ANIOS = Array.from({ length: 5 }, (_, i) => ANIO_ACTUAL - i)
 
 const fmt = (v: number) =>
@@ -40,6 +41,7 @@ export default function MontosPage() {
 
   const [mes, setMes] = useState(new Date().getMonth() + 1)
   const [anio, setAnio] = useState(ANIO_ACTUAL)
+  const [superAdmin, setSuperAdmin] = useState(false)
   const [items, setItems] = useState<MontoItem[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -62,6 +64,7 @@ export default function MontosPage() {
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
+    setSuperAdmin(isSuperAdmin())
     cargar()
   }, [mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -103,6 +106,10 @@ export default function MontosPage() {
   const totalSubtotal = items.reduce((s, i) => s + i.subtotal, 0)
   const totalImporte  = items.reduce((s, i) => s + i.total, 0)
 
+  // El revisor solo puede subir el layout del mes en curso; el superadmin, cualquier mes.
+  const esMesActual = mes === MES_ACTUAL && anio === ANIO_ACTUAL
+  const puedeSubir = superAdmin || esMesActual
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
@@ -133,7 +140,12 @@ export default function MontosPage() {
             >
               {revalidando ? 'Revalidando…' : '↻ Revalidar mes'}
             </button>
-            <label className={`cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+            <label
+              title={puedeSubir
+                ? 'Sube el layout de montos para el periodo seleccionado'
+                : `Como revisor solo puedes subir el layout del mes en curso (${MESES[MES_ACTUAL - 1]} ${ANIO_ACTUAL}). Cambia el periodo al mes actual.`}
+              className={`bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors ${(uploading || !puedeSubir) ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
+            >
               {uploading ? 'Cargando…' : '+ Subir layout (.xlsx)'}
               <input
                 ref={fileRef}
@@ -141,7 +153,7 @@ export default function MontosPage() {
                 accept=".xlsx"
                 className="hidden"
                 onChange={handleUpload}
-                disabled={uploading}
+                disabled={uploading || !puedeSubir}
               />
             </label>
           </div>
@@ -172,6 +184,12 @@ export default function MontosPage() {
           <span className="self-center text-sm text-slate-400">
             {items.length} profesor{items.length !== 1 ? 'es' : ''}
           </span>
+
+          {!puedeSubir && (
+            <span className="self-center text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+              Solo lectura · como revisor el layout solo se puede subir en {MESES[MES_ACTUAL - 1]} {ANIO_ACTUAL}
+            </span>
+          )}
         </div>
 
         {/* Tabla */}

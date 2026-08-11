@@ -279,6 +279,27 @@ def subir_montos_mensuales(
     if not filas:
         raise HTTPException(status_code=422, detail="El archivo no tiene filas con datos")
 
+    # ── Guard 0: el REVISOR solo puede cargar el layout del MES EN CURSO ───────────
+    # El superadmin puede cargar cualquier mes (mientras coincida con lo seleccionado,
+    # ver Guard 1). Se usa la hora de México (no UTC) para no bloquear cargas válidas
+    # en las últimas horas del mes, cuando UTC ya marca el mes siguiente.
+    if user.rol == "revisor":
+        try:
+            from zoneinfo import ZoneInfo
+            ahora_mx = datetime.now(ZoneInfo("America/Mexico_City"))
+        except Exception:
+            ahora_mx = datetime.now(timezone.utc)
+        if (anio, mes) != (ahora_mx.year, ahora_mx.month):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Como revisor solo puedes cargar el layout del mes en curso "
+                    f"({ahora_mx.month:02d}/{ahora_mx.year}). "
+                    f"Seleccionaste {mes:02d}/{anio}. Cambia el periodo al mes actual "
+                    f"para poder subir el archivo."
+                ),
+            )
+
     # ── Guard 1: cotejar el mes/año del archivo (si lo trae) contra lo seleccionado ──
     desajustes = [
         f"fila {f.fila} ({f.nombre_emisor}): archivo dice "
@@ -333,10 +354,6 @@ def subir_montos_mensuales(
             ),
         )
 
-    # ── Guard 4: advertir si el periodo es futuro (año mal tecleado, etc.) ─────────
-    hoy = datetime.now(timezone.utc)
-    periodo_futuro = (anio, mes) > (hoy.year, hoy.month)
-
     # Eliminar montos previos del mismo mes/año para permitir re-carga
     borrados = db.query(MontoMensual).filter(
         MontoMensual.mes == mes, MontoMensual.anio == anio
@@ -387,12 +404,7 @@ def subir_montos_mensuales(
               recurso="montos_mensuales", recurso_id=f"{mes:02d}/{anio}",
               detalle=f"filas={len(filas)} emparejados={len(cargados)} reemplazados={borrados}")
 
-    advertencias = []
-    if periodo_futuro:
-        advertencias.append(
-            f"El periodo {mes:02d}/{anio} es futuro respecto a hoy "
-            f"({hoy.month:02d}/{hoy.year}); confirma que el año/mes sea correcto."
-        )
+    advertencias: list[str] = []
 
     return {
         "mes": mes,
