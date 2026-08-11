@@ -300,12 +300,29 @@ def subir_montos_mensuales(
                 ),
             )
 
-    # ── Guard 1: cotejar el mes/año del archivo (si lo trae) contra lo seleccionado ──
-    desajustes = [
-        f"fila {f.fila} ({f.nombre_emisor}): archivo dice "
-        f"{(f.mes or '—')}/{(f.anio or '—')}"
+    # ── Guard 1a: el archivo DEBE declarar Mes y Año en cada fila ──────────────────
+    # Sin esto no se puede verificar que el layout corresponde al periodo seleccionado.
+    faltantes = [
+        f"fila {f.fila} ({f.nombre_emisor})"
         for f in filas
-        if (f.mes is not None and f.mes != mes) or (f.anio is not None and f.anio != anio)
+        if f.mes is None or f.anio is None
+    ]
+    if faltantes:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"El archivo debe indicar el Mes y el Año en cada fila para verificar que "
+                f"corresponde al periodo seleccionado ({mes:02d}/{anio}). Completa esas "
+                f"columnas en la plantilla. Filas sin Mes/Año: {'; '.join(faltantes[:5])}"
+                + (f" (+{len(faltantes) - 5} más)" if len(faltantes) > 5 else "")
+            ),
+        )
+
+    # ── Guard 1b: el Mes/Año del archivo debe COINCIDIR con lo seleccionado ─────────
+    desajustes = [
+        f"fila {f.fila} ({f.nombre_emisor}): archivo dice {f.mes:02d}/{f.anio}"
+        for f in filas
+        if f.mes != mes or f.anio != anio
     ]
     if desajustes:
         raise HTTPException(

@@ -15,6 +15,8 @@ from app.models.usuario import Usuario
 
 CABECERA = ["Categoría", "Clave régimen emisor", "Nombre emisor",
             "Subtotal", "IVA Trasladado", "IVA Retenido", "ISR retenido", "Total"]
+# Encabezado con las columnas de periodo que ahora exige el endpoint.
+CABECERA_CON_PERIODO = CABECERA + ["Mes", "Año"]
 
 
 @pytest.fixture
@@ -44,7 +46,25 @@ def _admin_headers(db):
     return _asegurar_usuario(db, "admin", "superadmin")
 
 
-def _xlsx(filas: list[list]) -> bytes:
+# El layout solo se puede cargar en el mes en curso (hora de México).
+_HOY_MX = datetime.now(ZoneInfo("America/Mexico_City"))
+MES_ACTUAL, ANIO_ACTUAL = _HOY_MX.month, _HOY_MX.year
+
+
+def _xlsx(filas: list[list], mes: int = MES_ACTUAL, anio: int = ANIO_ACTUAL) -> bytes:
+    """Genera el .xlsx con las columnas Mes/Año llenas (obligatorias en el endpoint)."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(CABECERA_CON_PERIODO)
+    for f in filas:
+        ws.append([*f, mes, anio])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _xlsx_sin_periodo(filas: list[list]) -> bytes:
+    """Genera el .xlsx SIN columnas Mes/Año (para probar el rechazo)."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.append(CABECERA)
@@ -53,11 +73,6 @@ def _xlsx(filas: list[list]) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
-
-
-# El layout solo se puede cargar en el mes en curso (hora de México).
-_HOY_MX = datetime.now(ZoneInfo("America/Mexico_City"))
-MES_ACTUAL, ANIO_ACTUAL = _HOY_MX.month, _HOY_MX.year
 
 
 def test_upload_montos_rechaza_regimen_con_punto_decimal(client, db):
@@ -133,7 +148,8 @@ def test_upload_montos_superadmin_permite_mes_distinto_al_actual(client, db):
     """El superadmin sí puede cargar el layout de un periodo distinto al mes en curso."""
     headers = _admin_headers(db)
     mes_otro = 2 if MES_ACTUAL == 1 else 1
-    data = _xlsx([["Música", "626", "JUAN PEREZ LOPEZ", 1000, 160, 106.67, 100, 953.33]])
+    data = _xlsx([["Música", "626", "JUAN PEREZ LOPEZ", 1000, 160, 106.67, 100, 953.33]],
+                 mes=mes_otro, anio=ANIO_ACTUAL - 1)
     res = client.post(
         "/api/v1/facturas/upload-montos",
         params={"mes": mes_otro, "anio": ANIO_ACTUAL - 1},
@@ -147,3 +163,41 @@ def test_upload_montos_superadmin_permite_mes_distinto_al_actual(client, db):
         MontoMensual.mes == mes_otro,
         MontoMensual.anio == ANIO_ACTUAL - 1,
     ).count() == 1
+
+
+def test_upload_montos_rechaza_archivo_sin_mes_anio(client, db):
+    """Si el archivo no trae columnas Mes/Año, no se puede verificar el periodo → 422."""
+    headers = _admin_headers(db)  # superadmin: aísla el guard de coincidencia
+    data = _xlsx_sin_periodo([["Música", "626", "JUAN PEREZ LOPEZ", 1000, 160, 106.67, 100, 953.33]])
+    res = client.post(
+        "/api/v1/facturas/upload-montos",
+        params={"mes": MES_ACTUAL, "anio": ANIO_ACTUAL},
+        files={"file": ("montos.xlsx", data,
+                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=headers,
+    )
+    assert res.status_code == 422, res.text
+    assert "Mes y el Año" in res.json()["detail"]
+    assert db.query(MontoMensual).filter(
+        MontoMensual.nombre_layout == "JUAN PEREZ LOPEZ",
+    ).count() == 0
+
+
+def test_upload_montos_rechaza_archivo_de_otro_mes(client, db):
+    """El archivo declara un mes distinto al seleccionado → 422 por no coincidir."""
+    headers = _admin_headers(db)  # superadmin: aísla el guard de coincidencia
+    mes_archivo = 2 if MES_ACTUAL == 1 else 1
+    data = _xlsx([["Música", "626", "JUAN PEREZ LOPEZ", 1000, 160, 106.67, 100, 953.33]],
+                 mes=mes_archivo, anio=ANIO_ACTUAL)
+    res = client.post(
+        "/api/v1/facturas/upload-montos",
+        params={"mes": MES_ACTUAL, "anio": ANIO_ACTUAL},  # selecciona un mes distinto
+        files={"file": ("montos.xlsx", data,
+                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=headers,
+    )
+    assert res.status_code == 422, res.text
+    assert "no coincide" in res.json()["detail"]
+    assert db.query(MontoMensual).filter(
+        MontoMensual.nombre_layout == "JUAN PEREZ LOPEZ",
+    ).count() == 0

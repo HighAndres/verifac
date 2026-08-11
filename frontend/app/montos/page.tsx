@@ -159,6 +159,13 @@ export default function MontosPage() {
           </div>
         </div>
 
+        {/* Requisito del archivo */}
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+          El archivo debe incluir las columnas <span className="font-mono text-xs">Mes</span> y{' '}
+          <span className="font-mono text-xs">Año</span> en cada fila, y deben coincidir con el
+          periodo seleccionado arriba ({MESES[mes - 1]} {anio}); si no, la carga se rechaza.
+        </div>
+
         {/* Selector mes / año */}
         <div className="flex gap-3 mb-6">
           <select
