@@ -201,3 +201,31 @@ def test_upload_montos_rechaza_archivo_de_otro_mes(client, db):
     assert db.query(MontoMensual).filter(
         MontoMensual.nombre_layout == "JUAN PEREZ LOPEZ",
     ).count() == 0
+
+
+def test_upload_montos_se_guarda_en_el_mes_correspondiente(client, db):
+    """End-to-end: el layout cargado queda bajo el mes/año seleccionado y NO bajo otro."""
+    headers = _admin_headers(db)
+    periodo = {"mes": 3, "anio": ANIO_ACTUAL - 2}  # periodo aislado para el test
+    otro = {"mes": 4, "anio": ANIO_ACTUAL - 2}
+    data = _xlsx([["Música", "626", "JUAN PEREZ LOPEZ", 1000, 160, 106.67, 100, 953.33]],
+                 mes=periodo["mes"], anio=periodo["anio"])
+    res = client.post(
+        "/api/v1/facturas/upload-montos",
+        params=periodo,
+        files={"file": ("montos.xlsx", data,
+                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+
+    # Se lee bajo el periodo correcto vía el mismo endpoint que usa la pantalla.
+    r_ok = client.get(f"/api/v1/facturas/montos/{periodo['mes']}/{periodo['anio']}", headers=headers)
+    assert r_ok.status_code == 200, r_ok.text
+    nombres = [i["nombre_layout"] for i in r_ok.json()["items"]]
+    assert "JUAN PEREZ LOPEZ" in nombres
+
+    # NO aparece bajo otro mes del mismo año.
+    r_otro = client.get(f"/api/v1/facturas/montos/{otro['mes']}/{otro['anio']}", headers=headers)
+    assert r_otro.status_code == 200, r_otro.text
+    assert r_otro.json()["total"] == 0
