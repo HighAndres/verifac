@@ -73,7 +73,11 @@ export default function UsuariosPage() {
       // profesor_id solo aplica al rol profesor; en otros roles se manda null para limpiarlo.
       const profesorId = form.rol === 'profesor' ? (form.profesor_id || null) : null
       if (editId) {
-        const payload: Record<string, unknown> = { nombre: form.nombre, correo: form.correo || null, rol: form.rol, profesor_id: profesorId }
+        const payload: Record<string, unknown> = { nombre: form.nombre, rol: form.rol, profesor_id: profesorId }
+        // correo solo si cambió: así se puede editar (p.ej. cambiar contraseña) un
+        // usuario que aún no tiene correo real capturado.
+        const correoOriginal = usuarios.find(u => u.id === editId)?.correo ?? ''
+        if (form.correo.trim().toLowerCase() !== correoOriginal.trim().toLowerCase()) payload.correo = form.correo || null
         if (form.password) payload.password = form.password
         await updateUsuario(editId, payload)
       } else {
@@ -145,7 +149,7 @@ export default function UsuariosPage() {
                   Correo <span className="text-slate-400">(credencial de acceso)</span>
                 </label>
                 <input type="email" value={form.correo} onChange={e => setForm(f => ({ ...f, correo: e.target.value }))}
-                  required placeholder="juan@thehumantalent.com"
+                  required={!editId} placeholder="juan@thehumantalent.com"
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>

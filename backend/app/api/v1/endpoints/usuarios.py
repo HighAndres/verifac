@@ -165,7 +165,13 @@ def actualizar_usuario(
     if "password" in cambios:
         user.password_hash = hash_password(cambios.pop("password"))
     if "correo" in cambios:
-        cambios["correo"] = _validar_correo(db, cambios["correo"], excluir_usuario=user.id)
+        # Un correo idéntico al actual no es un cambio: no se revalida, para que
+        # editar otros campos (p.ej. contraseña) funcione aunque el usuario aún
+        # tenga correo placeholder o sin capturar.
+        if normalizar_correo(cambios["correo"]) == normalizar_correo(user.correo):
+            cambios.pop("correo")
+        else:
+            cambios["correo"] = _validar_correo(db, cambios["correo"], excluir_usuario=user.id)
     if "rol" in cambios and cambios["rol"] not in _ROLES:
         raise HTTPException(status_code=422, detail=f"rol debe ser uno de: {list(_ROLES)}")
 
