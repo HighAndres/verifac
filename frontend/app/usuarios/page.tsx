@@ -114,7 +114,7 @@ export default function UsuariosPage() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 p-8 max-w-4xl">
+      <main className="flex-1 p-8 max-w-6xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Usuarios</h2>
@@ -200,7 +200,7 @@ export default function UsuariosPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
           {loading ? (
             <p className="text-slate-400 text-sm text-center py-16">Cargando…</p>
           ) : (
