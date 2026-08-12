@@ -37,10 +37,11 @@ async function handle(res: Response) {
   return res.json()
 }
 
-export async function login(username: string, password: string) {
+export async function login(correo: string, password: string) {
   const res = await fetch(`${API}/api/v1/auth/login`, {
     method: 'POST',
-    body: new URLSearchParams({ username, password }),
+    // OAuth2 exige la llave "username"; enviamos el correo en ese campo.
+    body: new URLSearchParams({ username: correo, password }),
   })
   if (!res.ok) throw new Error('Credenciales incorrectas')
   const data = await res.json()

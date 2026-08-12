@@ -142,10 +142,10 @@ export default function UsuariosPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Correo <span className="text-slate-400">(opcional)</span>
+                  Correo <span className="text-slate-400">(credencial de acceso)</span>
                 </label>
                 <input type="email" value={form.correo} onChange={e => setForm(f => ({ ...f, correo: e.target.value }))}
-                  placeholder="juan@empresa.com"
+                  required placeholder="juan@thehumantalent.com"
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>

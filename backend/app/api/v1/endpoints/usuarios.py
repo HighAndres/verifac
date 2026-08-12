@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
+
 from app.api.deps import get_client_ip, get_db, require_superadmin
+from app.core.emails import es_correo_valido, es_placeholder, normalizar_correo
 from app.core.security import hash_password
 from app.models.profesor import Profesor
 from app.models.usuario import Usuario
@@ -15,6 +18,25 @@ from fastapi import Request
 router = APIRouter()
 
 _ROLES = ("superadmin", "revisor", "profesor")
+
+
+def _validar_correo(db: Session, correo_raw: Optional[str], excluir_usuario: Optional[UUID] = None) -> str:
+    """Normaliza y valida el correo como credencial de login: obligatorio, con
+    formato válido, no placeholder y único (case-insensitive). Devuelve el correo
+    normalizado (minúsculas)."""
+    correo = normalizar_correo(correo_raw)
+    if not correo:
+        raise HTTPException(status_code=422, detail="El correo es obligatorio (es la credencial de acceso)")
+    if not es_correo_valido(correo):
+        raise HTTPException(status_code=422, detail="El correo no tiene un formato válido")
+    if es_placeholder(correo):
+        raise HTTPException(status_code=422, detail="No se permite un correo placeholder; captura el correo real")
+    dup_q = db.query(Usuario).filter(func.lower(Usuario.correo) == correo)
+    if excluir_usuario:
+        dup_q = dup_q.filter(Usuario.id != excluir_usuario)
+    if dup_q.first():
+        raise HTTPException(status_code=409, detail="Ese correo ya está en uso por otra cuenta")
+    return correo
 
 
 class UsuarioCreate(BaseModel):
@@ -105,12 +127,13 @@ def crear_usuario(
     if db.query(Usuario).filter(Usuario.username == payload.username).first():
         raise HTTPException(status_code=409, detail="Username ya existe")
 
+    correo = _validar_correo(db, payload.correo)
     profesor_id = _validar_profesor_ligado(db, payload.rol, payload.profesor_id)
 
     user = Usuario(
         username=payload.username,
         nombre=payload.nombre,
-        correo=payload.correo or None,
+        correo=correo,
         password_hash=hash_password(payload.password),
         rol=payload.rol,
         profesor_id=profesor_id,
@@ -141,6 +164,8 @@ def actualizar_usuario(
     cambios = payload.model_dump(exclude_unset=True)
     if "password" in cambios:
         user.password_hash = hash_password(cambios.pop("password"))
+    if "correo" in cambios:
+        cambios["correo"] = _validar_correo(db, cambios["correo"], excluir_usuario=user.id)
     if "rol" in cambios and cambios["rol"] not in _ROLES:
         raise HTTPException(status_code=422, detail=f"rol debe ser uno de: {list(_ROLES)}")
 

@@ -23,6 +23,7 @@ def _bootstrap_superadmin():
             admin = Usuario(
                 username=settings.ADMIN_USERNAME,
                 nombre="Super Admin",
+                correo=settings.ADMIN_EMAIL.strip().lower(),
                 password_hash=settings.ADMIN_PASSWORD_HASH,
                 rol="superadmin",
             )

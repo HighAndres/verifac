@@ -5,7 +5,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
+
 from app.api.deps import get_client_ip, get_current_user
+from app.core.emails import es_placeholder, normalizar_correo
 from app.core.security import create_access_token, verify_password
 from app.core.rate_limit import check as rl_check, reset as rl_reset
 from app.db.session import get_db
@@ -31,10 +34,16 @@ def login(
     ip = get_client_ip(request) if request else "unknown"
     rl_check(ip)   # máximo 10 intentos por IP en 15 min
 
-    user = db.query(Usuario).filter(
-        Usuario.username == form.username,
-        Usuario.activo == True,  # noqa: E712
-    ).first()
+    # El acceso es por CORREO (el campo del formulario OAuth2 se llama "username"
+    # por el estándar, pero contiene el correo). Se compara normalizado y sin
+    # distinguir mayúsculas; los correos placeholder no son credencial válida.
+    correo = normalizar_correo(form.username)
+    user = None
+    if correo and not es_placeholder(correo):
+        user = db.query(Usuario).filter(
+            func.lower(Usuario.correo) == correo,
+            Usuario.activo == True,  # noqa: E712
+        ).first()
 
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(

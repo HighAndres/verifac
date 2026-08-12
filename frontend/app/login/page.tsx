@@ -9,7 +9,7 @@ const APP_TAGLINE = 'Validación y conciliación de CFDI'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [username, setUsername] = useState('')
+  const [correo, setCorreo] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
@@ -20,7 +20,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(username, password)
+      await login(correo, password)
       router.push(rutaInicioPorRol())
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
@@ -51,14 +51,15 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Usuario</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Correo</label>
               <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
+                type="email"
+                value={correo}
+                onChange={e => setCorreo(e.target.value)}
                 required
                 autoFocus
-                autoComplete="username"
+                autoComplete="email"
+                placeholder="tucorreo@thehumantalent.com"
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

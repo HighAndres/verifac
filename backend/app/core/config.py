@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     RFC_RECEPTOR: str
     NOMBRE_RECEPTOR: str
     ADMIN_USERNAME: str = "admin"
+    ADMIN_EMAIL: str = "admin@thehumantalent.com"  # credencial de login del superadmin inicial
     ADMIN_PASSWORD_HASH: str
     FRONTEND_URL: str = "http://localhost:3000"
     MAX_UPLOAD_MB: int = 10

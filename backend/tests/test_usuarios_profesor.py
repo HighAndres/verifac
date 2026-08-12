@@ -34,7 +34,8 @@ def _profesor(db, rfc="ZZZ090909ZZ9"):
 
 def test_crear_profesor_requiere_profesor_id(client, admin_headers):
     r = client.post("/api/v1/usuarios", headers=admin_headers, json={
-        "username": "p1", "nombre": "P1", "password": "secreto", "rol": "profesor",
+        "username": "p1", "nombre": "P1", "password": "secreto",
+        "correo": "p1@example.com", "rol": "profesor",
     })
     assert r.status_code == 422
 
@@ -43,7 +44,7 @@ def test_crear_profesor_liga_ok(client, admin_headers, db):
     p = _profesor(db)
     r = client.post("/api/v1/usuarios", headers=admin_headers, json={
         "username": "p2", "nombre": "P2", "password": "secreto",
-        "rol": "profesor", "profesor_id": str(p.id),
+        "correo": "p2@example.com", "rol": "profesor", "profesor_id": str(p.id),
     })
     assert r.status_code == 201
     assert r.json()["profesor_id"] == str(p.id)
@@ -56,14 +57,14 @@ def test_no_dos_usuarios_al_mismo_profesor(client, admin_headers, db):
     db.flush()
     r = client.post("/api/v1/usuarios", headers=admin_headers, json={
         "username": "otro", "nombre": "Otro", "password": "secreto",
-        "rol": "profesor", "profesor_id": str(p.id),
+        "correo": "otro@example.com", "rol": "profesor", "profesor_id": str(p.id),
     })
     assert r.status_code == 409
 
 
 def test_rol_no_profesor_limpia_profesor_id(client, admin_headers, db):
     r = client.post("/api/v1/usuarios", headers=admin_headers, json={
-        "username": "rev", "nombre": "Rev", "password": "secreto",
+        "username": "rev", "nombre": "Rev", "password": "secreto", "correo": "rev@example.com",
         "rol": "revisor", "profesor_id": str(_profesor(db, rfc="WWW070707WW7").id),
     })
     assert r.status_code == 201
