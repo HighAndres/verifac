@@ -62,7 +62,17 @@ def reconstruir_cfdi(f: Factura) -> CFDIData:
 def revalidar_factura(f: Factura, db: Session) -> tuple[str, Optional[str]]:
     """Revalida una factura in-place (no hace commit). Retorna (estado, motivo)."""
     cfdi = reconstruir_cfdi(f)
-    detalles_data, _, _ = validar_cfdi(cfdi, db)
+    # La regla de "mes en curso" se evalúa contra CUÁNDO se recibió la factura
+    # (created_at, en hora de México), no contra hoy: revalidar en septiembre una
+    # factura de agosto que llegó en agosto debe poder aprobarla.
+    recibida_en = f.created_at
+    if recibida_en is not None:
+        try:
+            from zoneinfo import ZoneInfo
+            recibida_en = recibida_en.astimezone(ZoneInfo("America/Mexico_City"))
+        except Exception:
+            pass
+    detalles_data, _, _ = validar_cfdi(cfdi, db, recibida_en=recibida_en)
 
     # El cotejo PDF↔XML no se puede rehacer sin el PDF; se reaplica el guardado.
     if f.pdf_cotejo == "no_coincide":

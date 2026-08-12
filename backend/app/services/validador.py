@@ -2,6 +2,7 @@
 Motor de validación CFDI 4.0.
 Los nombres de campo coinciden exactamente con las columnas del archivo "Ejemplo Base BBVA.xlsx".
 """
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -29,6 +30,17 @@ def _cerca(recibido: Decimal, esperado: Decimal) -> bool:
     return abs(recibido - esperado) <= TOLERANCIA
 
 
+def _ahora_mx() -> datetime:
+    """Hora de México (no UTC), igual que la regla de carga de montos: evita
+    rechazar facturas válidas en las últimas horas del mes, cuando UTC ya marca
+    el mes siguiente."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Mexico_City"))
+    except Exception:
+        return datetime.now(timezone.utc)
+
+
 def _claves_servicio_autorizadas(profesor: Optional[Profesor], db: Session) -> set[str]:
     """
     Si el profesor tiene claves propias → usar esas (override).
@@ -48,10 +60,16 @@ def _claves_servicio_autorizadas(profesor: Optional[Profesor], db: Session) -> s
     }
 
 
-def validar_cfdi(cfdi: CFDIData, db: Session) -> tuple[list[dict], str, Optional[str]]:
+def validar_cfdi(cfdi: CFDIData, db: Session,
+                 recibida_en: Optional[datetime] = None) -> tuple[list[dict], str, Optional[str]]:
     """
     Retorna (detalles, estado, motivo_rechazo).
     Los nombres de campo siguen las columnas del Ejemplo Base BBVA.
+
+    `recibida_en`: momento en que la factura ENTRÓ al sistema (hora de México).
+    Por defecto es ahora (flujos de intake: portal, correo, carga manual); la
+    revalidación pasa el created_at de la factura para que la regla de "mes en
+    curso" no tumbe facturas que llegaron a tiempo y se revalidan después.
     """
     detalles: list[dict] = []
     errores: list[str] = []
@@ -199,6 +217,21 @@ def validar_cfdi(cfdi: CFDIData, db: Session) -> tuple[list[dict], str, Optional
         "Fecha válida",
         cfdi.fecha is not None,
     )
+
+    # ── Mes en curso ──────────────────────────────────────────────────────────
+    # Solo se aceptan facturas emitidas en el mes en curso al momento de recibirlas:
+    # una factura de un mes anterior pertenece a un proceso ya cerrado (o aún no
+    # procesado) y no debe aprobarse sola, aunque exista layout de ese mes y los
+    # montos coincidan.
+    if cfdi.fecha:
+        ref = recibida_en or _ahora_mx()
+        check(
+            "Mes de emisión",
+            f"{cfdi.fecha.month:02d}/{cfdi.fecha.year}",
+            f"Mes en curso ({ref.month:02d}/{ref.year})",
+            (cfdi.fecha.year, cfdi.fecha.month) == (ref.year, ref.month),
+            "Solo se aceptan facturas emitidas en el mes en curso.",
+        )
 
     # ── Conciliación contra layout de montos mensuales ────────────────────────
     # Regla crítica: si el emisor está registrado, la factura DEBE conciliarse contra

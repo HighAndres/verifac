@@ -12,11 +12,18 @@ from app.services.cfdi_parser import CFDIData, ConceptoCFDI
 Q = Decimal("0.01")
 
 
+def fecha_mes_actual(dia: int = 15) -> datetime:
+    """Fecha dentro del mes en curso: el validador solo acepta facturas emitidas
+    en el mes en curso, así que el default de las pruebas debe moverse con el reloj."""
+    hoy = datetime.now()
+    return datetime(hoy.year, hoy.month, dia)
+
+
 def build_cfdi(
     *,
     regimen: str = "612",
     subtotal: str = "1000.00",
-    fecha: datetime = datetime(2026, 6, 15),
+    fecha: Optional[datetime] = None,
     rfc_emisor: str = "XAXX010101000",
     nombre_emisor: str = "TEST EMISOR",
     rfc_receptor: Optional[str] = None,
@@ -32,6 +39,7 @@ def build_cfdi(
     moneda: str = "MXN",
     uuid: str = "TEST-UUID-0001",
 ) -> CFDIData:
+    fecha = fecha or fecha_mes_actual()
     sub = Decimal(subtotal)
     if regimen == "603":
         ivaT, ivaR, isr = Decimal("0"), Decimal("0"), Decimal("0")
