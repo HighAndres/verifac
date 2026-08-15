@@ -49,7 +49,16 @@ def _claves_servicio_autorizadas(profesor: Optional[Profesor], db: Session) -> s
         pivot = db.query(ProfesorClave).filter(ProfesorClave.profesor_id == profesor.id).all()
         if pivot:
             ids = {p.catalogo_clave_id for p in pivot}
-            return {c.clave for c in db.query(CatalogoClave).filter(CatalogoClave.id.in_(ids)).all()}
+            return {
+                c.clave
+                for c in db.query(CatalogoClave)
+                .filter(
+                    CatalogoClave.id.in_(ids),
+                    CatalogoClave.tipo == "servicio",
+                    CatalogoClave.activo == True,  # noqa: E712
+                )
+                .all()
+            }
 
     return {
         c.clave

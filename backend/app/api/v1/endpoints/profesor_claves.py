@@ -70,6 +70,11 @@ def asignar_clave(
     cat = db.query(CatalogoClave).filter(CatalogoClave.id == clave_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Clave de catálogo no encontrada")
+    if cat.tipo != "servicio":
+        raise HTTPException(
+            status_code=422,
+            detail="Solo se pueden asignar claves de tipo 'servicio' — las de unidad son globales",
+        )
 
     existe = (
         db.query(ProfesorClave)
