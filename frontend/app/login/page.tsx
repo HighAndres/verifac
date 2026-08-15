@@ -47,7 +47,7 @@ export default function LoginPage() {
         {/* Tarjeta */}
         <div className="bg-white rounded-2xl shadow-xl p-7">
           <h2 className="text-base font-semibold text-slate-800 mb-1">Iniciar sesión</h2>
-          <p className="text-sm text-slate-400 mb-6">Acceso restringido — uso interno.</p>
+          <p className="text-sm text-slate-400 mb-6">Instancia de The Human Talent</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
