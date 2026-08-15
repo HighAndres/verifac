@@ -207,9 +207,9 @@ def eliminar_usuario(
     if str(user.id) == str(admin.id):
         raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
 
+    db.delete(user)
     audit.log(db, username=admin.username, rol=admin.rol, accion="DELETE",
               recurso="usuario", recurso_id=str(user_id),
               detalle=f"Eliminó usuario {user.username}",
               ip=get_client_ip(request))
-    db.delete(user)
     db.commit()
