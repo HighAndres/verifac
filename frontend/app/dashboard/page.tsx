@@ -88,7 +88,7 @@ export default function DashboardPage() {
             <button
               onClick={handleDescargar}
               disabled={descargando}
-              title="Descarga el resumen de conciliación y las facturas aprobadas en formato Base BBVA"
+              title="Descarga el resumen de conciliación, las facturas aprobadas en formato Base BBVA, y el detalle de aprobadas/rechazadas con motivo"
               className={`bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors ${descargando ? 'opacity-60 pointer-events-none' : ''}`}
             >
               {descargando ? 'Generando…' : '↓ Descargar Excel'}

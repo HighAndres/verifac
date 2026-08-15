@@ -5,6 +5,9 @@ Hoja 1 "Resumen conciliación": una fila por entrada del layout de montos, con l
 montos esperados, el estatus de su factura y la diferencia contra lo facturado.
 Hoja 2 "Base BBVA": las facturas APROBADAS del mes en las columnas del formato
 "Ejemplo Base BBVA" (el excel que se envía para pago).
+Hoja 3 "Aprobadas y rechazadas": TODAS las facturas del mes (sin deduplicar por
+RFC), con su estado y el motivo cuando se rechazaron — para revisar de un
+vistazo qué pasó con cada una.
 """
 import io
 from datetime import datetime
@@ -162,6 +165,27 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
         for c in fila[14:19]:
             c.number_format = _MONEY
     _autoancho(ws2)
+
+    # ── Hoja 3: Aprobadas y rechazadas (todas las facturas del mes) ──────────
+    ws3 = wb.create_sheet("Aprobadas y rechazadas")
+    _hoja_encabezado(ws3, [
+        "Nombre emisor", "RFC emisor", "Estado", "Motivo de rechazo",
+        "Fecha emisión", "UUID factura", "Total", "Origen",
+    ])
+
+    todas = sorted(facturas, key=lambda f: (f.nombre_emisor or "", f.fecha_emision or datetime.min))
+    for f in todas:
+        ws3.append([
+            _celda_segura(f.nombre_emisor), f.rfc_emisor, f.estado.capitalize() if f.estado else None,
+            _celda_segura(f.motivo_rechazo) if f.estado == "rechazada" else None,
+            f.fecha_emision.strftime("%Y-%m-%d") if f.fecha_emision else None,
+            f.uuid_cfdi, float(f.total) if f.total is not None else None, f.origen,
+        ])
+
+    for fila in ws3.iter_rows(min_row=2):
+        for c in fila[6:7]:
+            c.number_format = _MONEY
+    _autoancho(ws3, maximo=60)
 
     buf = io.BytesIO()
     wb.save(buf)
