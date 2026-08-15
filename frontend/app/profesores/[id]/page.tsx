@@ -89,7 +89,7 @@ export default function ProfesorDetallePage() {
   const load = useCallback(async () => {
     const [p, cat, asig] = await Promise.all([
       getProfesor(id),
-      getCatalogo('servicio'),
+      getCatalogo(),
       getClavesByProfesor(id),
     ])
     setProfesor(p)
