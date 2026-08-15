@@ -17,15 +17,28 @@ interface AuditLog {
   timestamp: string
 }
 
-const ACCIONES = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'UPLOAD']
-const RECURSOS = ['factura', 'profesor', 'catalogo_clave', 'usuario', 'watcher']
+const ACCIONES = [
+  'LOGIN', 'LOGIN_FAILED', 'LOGIN_BLOCKED', 'CREATE', 'UPDATE', 'DELETE',
+  'UPLOAD', 'IMPORT', 'EXPORT', 'REVALIDATE', 'WATCHER_RUN', 'CONFIRMACIONES',
+]
+const RECURSOS = [
+  'factura', 'profesor', 'profesor_clave', 'profesores', 'catalogo_clave',
+  'usuario', 'pago', 'montos_mensuales', 'conciliacion', 'correo', 'configuracion_correo',
+]
 
 const ACCION_BADGE: Record<string, string> = {
-  LOGIN:  'bg-blue-100 text-blue-700',
-  CREATE: 'bg-emerald-100 text-emerald-700',
-  UPDATE: 'bg-amber-100 text-amber-700',
-  DELETE: 'bg-red-100 text-red-700',
-  UPLOAD: 'bg-purple-100 text-purple-700',
+  LOGIN:          'bg-blue-100 text-blue-700',
+  LOGIN_FAILED:   'bg-red-100 text-red-700',
+  LOGIN_BLOCKED:  'bg-red-100 text-red-700',
+  CREATE:         'bg-emerald-100 text-emerald-700',
+  UPDATE:         'bg-amber-100 text-amber-700',
+  DELETE:         'bg-red-100 text-red-700',
+  UPLOAD:         'bg-purple-100 text-purple-700',
+  IMPORT:         'bg-purple-100 text-purple-700',
+  EXPORT:         'bg-slate-200 text-slate-700',
+  REVALIDATE:     'bg-amber-100 text-amber-700',
+  WATCHER_RUN:    'bg-sky-100 text-sky-700',
+  CONFIRMACIONES: 'bg-sky-100 text-sky-700',
 }
 
 export default function AuditoriaPage() {
@@ -33,6 +46,7 @@ export default function AuditoriaPage() {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMas, setLoadingMas] = useState(false)
 
   const [filtroUsername, setFiltroUsername] = useState('')
   const [filtroAccion, setFiltroAccion] = useState('')
@@ -40,24 +54,38 @@ export default function AuditoriaPage() {
   const [filtroDesde, setFiltroDesde] = useState('')
   const [filtroHasta, setFiltroHasta] = useState('')
 
+  const PAGINA = 100
+
   useEffect(() => {
     if (!isSuperAdmin()) { router.push('/facturas'); return }
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  function armarParams(skip: number) {
+    const params: Record<string, string> = { limit: String(PAGINA), skip: String(skip) }
+    if (filtroUsername) params.username = filtroUsername
+    if (filtroAccion) params.accion = filtroAccion
+    if (filtroRecurso) params.recurso = filtroRecurso
+    if (filtroDesde) params.desde = new Date(filtroDesde).toISOString()
+    if (filtroHasta) params.hasta = new Date(filtroHasta + 'T23:59:59').toISOString()
+    return params
+  }
+
   async function load() {
     setLoading(true)
     try {
-      const params: Record<string, string> = { limit: '100' }
-      if (filtroUsername) params.username = filtroUsername
-      if (filtroAccion) params.accion = filtroAccion
-      if (filtroRecurso) params.recurso = filtroRecurso
-      if (filtroDesde) params.desde = new Date(filtroDesde).toISOString()
-      if (filtroHasta) params.hasta = new Date(filtroHasta + 'T23:59:59').toISOString()
-      const data = await getAuditoria(params)
+      const data = await getAuditoria(armarParams(0))
       setLogs(data.items)
       setTotal(data.total)
     } finally { setLoading(false) }
+  }
+
+  async function cargarMas() {
+    setLoadingMas(true)
+    try {
+      const data = await getAuditoria(armarParams(logs.length))
+      setLogs(prev => [...prev, ...data.items])
+    } finally { setLoadingMas(false) }
   }
 
   const fmtDate = (v: string) =>
@@ -143,6 +171,15 @@ export default function AuditoriaPage() {
                 ))}
               </tbody>
             </table>
+          )}
+          {!loading && logs.length > 0 && logs.length < total && (
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-sm">
+              <span className="text-slate-400 text-xs">{logs.length} de {total} eventos</span>
+              <button onClick={cargarMas} disabled={loadingMas}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                {loadingMas ? 'Cargando…' : 'Cargar más'}
+              </button>
+            </div>
           )}
         </div>
       </main>
