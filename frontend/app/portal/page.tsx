@@ -380,11 +380,10 @@ export default function PortalPage() {
             <h2 className="text-base font-semibold text-slate-800">Subir mi factura</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Sube el <b>XML</b> de tu factura (CFDI 4.0). El sistema la valida al instante y te dice si está bien o qué corregir.
-              El <b>PDF</b> es opcional y solo sirve para dejarlo como comprobante.
             </p>
           </div>
           <form onSubmit={handleSubir} className="p-5">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="max-w-sm">
               <ArchivoField
                 label="Archivo XML (CFDI 4.0)"
                 accept=".xml"
@@ -392,6 +391,7 @@ export default function PortalPage() {
                 onChange={setXmlFile}
                 inputRef={xmlInputRef}
               />
+              {/* Oculto temporalmente: carga de PDF (se reactivará más adelante)
               <ArchivoField
                 label="Archivo PDF (opcional)"
                 accept=".pdf"
@@ -399,6 +399,7 @@ export default function PortalPage() {
                 onChange={setPdfFile}
                 required={false}
               />
+              */}
             </div>
             <button type="submit" disabled={subiendo || !xmlFile}
               className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
@@ -408,47 +409,48 @@ export default function PortalPage() {
           {resultado && <ChecksTabla f={resultado} onClose={() => setResultado(null)} />}
         </section>
 
-        {/* Datos + documentos */}
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Mis datos</h2>
-            <dl className="space-y-1.5 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">RFC</dt>
-                <dd className="font-mono font-medium">{perfil?.rfc ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Correo</dt>
-                <dd className="text-slate-700 truncate">{perfil?.correo ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Régimen fiscal</dt>
-                <dd className="text-slate-700">{perfil?.regimen_fiscal ?? '—'}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Mis documentos</h2>
-            <p className="text-sm text-slate-500 mb-4 flex-1">
-              Comprobantes y documentos guardados en tu carpeta de Google Drive.
-            </p>
-            {perfil?.drive_url ? (
-              <a href={perfil.drive_url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <path d="M14 2v6h6" />
-                </svg>
-                Abrir mi carpeta
-              </a>
-            ) : (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                Aún no disponible. Contacta al administrador.
-              </p>
-            )}
-          </div>
+        {/* Mis datos — franja horizontal (antes compartía la fila con "Mis documentos",
+            que quedó oculta más abajo; se reacomodó a 3 columnas para ocupar el ancho) */}
+        <section className="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Mis datos</h2>
+          <dl className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-slate-500">RFC</dt>
+              <dd className="font-mono font-medium text-slate-800 mt-0.5">{perfil?.rfc ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Correo</dt>
+              <dd className="text-slate-800 mt-0.5 truncate">{perfil?.correo ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Régimen fiscal</dt>
+              <dd className="text-slate-800 mt-0.5">{perfil?.regimen_fiscal ?? '—'}</dd>
+            </div>
+          </dl>
         </section>
+
+        {/* Oculto temporalmente: tarjeta "Mis documentos" (link a Drive), se reactivará más adelante
+        <section className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Mis documentos</h2>
+          <p className="text-sm text-slate-500 mb-4 flex-1">
+            Comprobantes y documentos guardados en tu carpeta de Google Drive.
+          </p>
+          {perfil?.drive_url ? (
+            <a href={perfil.drive_url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+              </svg>
+              Abrir mi carpeta
+            </a>
+          ) : (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Aún no disponible. Contacta al administrador.
+            </p>
+          )}
+        </section>
+        */}
 
         {/* Facturas */}
         <section className="bg-white rounded-xl border border-slate-200">
