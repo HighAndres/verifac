@@ -8,18 +8,20 @@ el token (get_current_profesor), nunca por un id que mande el cliente.
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_profesor, get_db
+from app.api.deps import get_client_ip, get_current_profesor, get_db, require_profesor
 from app.core.config import settings
 from app.models.factura import Factura
 from app.models.pago import Pago
 from app.models.profesor import Profesor
+from app.models.usuario import Usuario
 from app.models.validacion_detalle import ValidacionDetalle
 from app.schemas.factura import FacturaDetalleOut, FacturaListOut, FacturaOut
+from app.services import audit
 from app.services.cfdi_parser import parsear_cfdi
 from app.services.factura_portal import FacturaAjena, FacturaDuplicada, registrar_factura_portal
 
@@ -98,9 +100,11 @@ def mis_pagos(
              summary="El profesor sube su XML (el PDF es opcional), se valida y devuelve el resultado")
 def subir_factura(
     xml: UploadFile,
+    request: Request,
     pdf: Optional[UploadFile] = None,
     db: Session = Depends(get_db),
     profesor: Profesor = Depends(get_current_profesor),
+    user: Usuario = Depends(require_profesor),
 ):
     if not (xml.filename or "").lower().endswith(".xml"):
         raise HTTPException(status_code=422, detail="El archivo XML debe tener extensión .xml")
@@ -133,6 +137,11 @@ def subir_factura(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+    audit.log(db, username=user.username, rol=user.rol, accion="UPLOAD",
+              recurso="factura", recurso_id=str(factura.id),
+              detalle=f"Profesor subió su factura UUID={factura.uuid_cfdi} — {factura.estado}",
+              ip=get_client_ip(request))
 
     detalles = db.query(ValidacionDetalle).filter(ValidacionDetalle.factura_id == factura.id).all()
     return {**FacturaOut.model_validate(factura).model_dump(), "detalles": detalles}

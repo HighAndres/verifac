@@ -1,14 +1,16 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_lectura, require_revisor
+from app.api.deps import get_client_ip, require_revisor
 from app.db.session import get_db
 from app.models.catalogo_clave import CatalogoClave
 from app.models.profesor import Profesor
 from app.models.profesor_clave import ProfesorClave
+from app.models.usuario import Usuario
+from app.services import audit
 
 router = APIRouter()
 
@@ -34,7 +36,6 @@ def _profesor_or_404(db: Session, profesor_id: UUID) -> Profesor:
 def listar_claves_profesor(
     profesor_id: UUID,
     db: Session = Depends(get_db),
-    _: object = Depends(require_lectura),
 ):
     _profesor_or_404(db, profesor_id)
     rows = (
@@ -63,10 +64,11 @@ def listar_claves_profesor(
 def asignar_clave(
     profesor_id: UUID,
     clave_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
-    _: object = Depends(require_revisor),
+    user: Usuario = Depends(require_revisor),
 ):
-    _profesor_or_404(db, profesor_id)
+    profesor = _profesor_or_404(db, profesor_id)
     cat = db.query(CatalogoClave).filter(CatalogoClave.id == clave_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Clave de catálogo no encontrada")
@@ -86,6 +88,11 @@ def asignar_clave(
 
     pc = ProfesorClave(profesor_id=profesor_id, catalogo_clave_id=clave_id)
     db.add(pc)
+    db.flush()
+    audit.log(db, username=user.username, rol=user.rol, accion="CREATE",
+              recurso="profesor_clave", recurso_id=str(pc.id),
+              detalle=f"Asignó clave {cat.clave} a profesor RFC={profesor.rfc}",
+              ip=get_client_ip(request))
     db.commit()
     db.refresh(pc)
     return ClaveAsignadaOut(id=pc.id, catalogo_clave_id=cat.id, clave=cat.clave, descripcion=cat.descripcion, tipo=cat.tipo)
@@ -95,9 +102,11 @@ def asignar_clave(
 def remover_clave(
     profesor_id: UUID,
     clave_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
-    _: object = Depends(require_revisor),
+    user: Usuario = Depends(require_revisor),
 ):
+    profesor = _profesor_or_404(db, profesor_id)
     pc = (
         db.query(ProfesorClave)
         .filter(ProfesorClave.profesor_id == profesor_id, ProfesorClave.catalogo_clave_id == clave_id)
@@ -105,5 +114,10 @@ def remover_clave(
     )
     if not pc:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    cat = db.query(CatalogoClave).filter(CatalogoClave.id == clave_id).first()
     db.delete(pc)
+    audit.log(db, username=user.username, rol=user.rol, accion="DELETE",
+              recurso="profesor_clave", recurso_id=str(pc.id),
+              detalle=f"Removió clave {cat.clave if cat else clave_id} de profesor RFC={profesor.rfc}",
+              ip=get_client_ip(request))
     db.commit()
