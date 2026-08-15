@@ -552,6 +552,21 @@ export default function PortalPage() {
           </div>
         </section>
       </main>
+
+      {/* Soporte — botón flotante sutil, siempre visible */}
+      <a
+        href={`mailto:honorarios@thehumantalent.com?subject=${encodeURIComponent(
+          `Soporte Verifac${perfil?.nombre ? ` — ${perfil.nombre}` : ''}`
+        )}`}
+        title="¿Dudas o problemas? Escríbenos a honorarios@thehumantalent.com"
+        className="fixed bottom-5 right-5 flex items-center gap-2 bg-white border border-slate-200 text-slate-500 text-xs font-medium pl-3 pr-4 py-2.5 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 hover:text-slate-700 transition-all"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2" />
+          <path d="m22 6-10 7L2 6" />
+        </svg>
+        Soporte
+      </a>
     </div>
   )
 }
