@@ -19,6 +19,12 @@ def _validar_drive_url(v: Optional[str]) -> Optional[str]:
     return v
 
 
+def _validar_regimen(v: Optional[str]) -> Optional[str]:
+    if v is not None and v not in {"626", "612", "603"}:
+        raise ValueError("regimen_fiscal debe ser 626, 612 o 603")
+    return v
+
+
 class ProfesorBase(BaseModel):
     rfc: str
     nombre: str
@@ -42,9 +48,7 @@ class ProfesorBase(BaseModel):
     @field_validator("regimen_fiscal")
     @classmethod
     def regimen_valido(cls, v: str) -> str:
-        if v not in {"626", "612", "603"}:
-            raise ValueError("regimen_fiscal debe ser 626, 612 o 603")
-        return v
+        return _validar_regimen(v)
 
 
 class ProfesorCreate(ProfesorBase):
@@ -62,6 +66,11 @@ class ProfesorUpdate(BaseModel):
     @classmethod
     def drive_url_valido(cls, v: Optional[str]) -> Optional[str]:
         return _validar_drive_url(v)
+
+    @field_validator("regimen_fiscal")
+    @classmethod
+    def regimen_valido(cls, v: Optional[str]) -> Optional[str]:
+        return _validar_regimen(v)
 
 
 class ProfesorOut(ProfesorBase):
