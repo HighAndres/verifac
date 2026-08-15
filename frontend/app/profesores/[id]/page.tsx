@@ -7,7 +7,6 @@ import Sidebar from '@/components/Sidebar'
 import {
   isAuthenticated,
   isSuperAdmin,
-  isConsulta,
   getCatalogo,
   getClavesByProfesor,
   asignarClave,
@@ -86,7 +85,6 @@ export default function ProfesorDetallePage() {
   const [cuentaForm, setCuentaForm] = useState({ username: '', password: '' })
   const [cuentaError, setCuentaError] = useState('')
   const [cuentaSaving, setCuentaSaving] = useState(false)
-  const [consulta, setConsulta] = useState(false)
 
   const load = useCallback(async () => {
     const [p, cat, asig] = await Promise.all([
@@ -102,7 +100,6 @@ export default function ProfesorDetallePage() {
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
-    setConsulta(isConsulta())
     load()
   }, [load, router])
 
@@ -218,7 +215,7 @@ export default function ProfesorDetallePage() {
               }`}>
                 {profesor.activo ? 'Activo' : 'Inactivo'}
               </span>
-              {!editando && !consulta && (
+              {!editando && (
                 <button
                   onClick={iniciarEdicion}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -400,9 +397,7 @@ export default function ProfesorDetallePage() {
                   return (
                     <label
                       key={cat.id}
-                      className={`flex items-center gap-4 p-3 rounded-lg border transition-colors select-none ${
-                        consulta ? 'cursor-default' : 'cursor-pointer'
-                      } ${
+                      className={`flex items-center gap-4 p-3 rounded-lg border cursor-pointer transition-colors select-none ${
                         asignada
                           ? 'border-blue-200 bg-blue-50'
                           : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'
@@ -411,9 +406,8 @@ export default function ProfesorDetallePage() {
                       <input
                         type="checkbox"
                         checked={asignada}
-                        disabled={consulta}
                         onChange={() => toggleClave(cat.id, asignada)}
-                        className="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 disabled:cursor-default"
+                        className="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

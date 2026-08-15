@@ -1,5 +1,6 @@
-"""Pruebas del rol 'consulta': acceso de solo lectura a dashboard, profesores,
-facturas y pagos; sin permiso de escritura en ningún lado."""
+"""Pruebas del rol 'consulta': solo ve el dashboard y descarga el Excel de
+reportes (facturas/export-mes) — sin acceso a ninguna otra pantalla ni permiso
+de escritura en ningún lado."""
 from datetime import datetime, timezone
 
 import pytest
@@ -45,7 +46,7 @@ def _profesor(db, rfc="CON010101AA1", nombre="Profe Consulta"):
     return p
 
 
-def test_consulta_puede_ver_dashboard_profesores_facturas_pagos(client, db):
+def test_consulta_puede_ver_dashboard_y_descargar_excel(client, db):
     headers = _consulta_headers(db)
     p = _profesor(db)
     db.add(Factura(uuid_cfdi="CON-1", rfc_emisor=p.rfc, estado="aprobada", total=1000,
@@ -53,19 +54,28 @@ def test_consulta_puede_ver_dashboard_profesores_facturas_pagos(client, db):
     db.flush()
 
     assert client.get("/api/v1/dashboard?mes=6&anio=2026", headers=headers).status_code == 200
-    assert client.get("/api/v1/profesores", headers=headers).status_code == 200
-    assert client.get(f"/api/v1/profesores/{p.id}", headers=headers).status_code == 200
-    assert client.get(f"/api/v1/profesores/{p.id}/claves", headers=headers).status_code == 200
-    assert client.get("/api/v1/facturas", headers=headers).status_code == 200
     r = client.get("/api/v1/facturas/export-mes?mes=6&anio=2026", headers=headers)
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
-    assert client.get("/api/v1/pagos?mes=6&anio=2026", headers=headers).status_code == 200
 
 
-def test_consulta_no_puede_escribir_en_profesores_ni_facturas_ni_pagos(client, db):
+def test_consulta_sin_acceso_a_profesores_facturas_pagos_catalogo(client, db):
+    # 'consulta' ya no ve estas pantallas — solo dashboard + export-mes.
     headers = _consulta_headers(db)
     p = _profesor(db, rfc="CON020202BB2", nombre="Profe Consulta 2")
+
+    assert client.get("/api/v1/profesores", headers=headers).status_code == 403
+    assert client.get(f"/api/v1/profesores/{p.id}", headers=headers).status_code == 403
+    assert client.get(f"/api/v1/profesores/{p.id}/claves", headers=headers).status_code == 403
+    assert client.get("/api/v1/facturas", headers=headers).status_code == 403
+    assert client.get("/api/v1/facturas/montos/6/2026", headers=headers).status_code == 403
+    assert client.get("/api/v1/pagos?mes=6&anio=2026", headers=headers).status_code == 403
+    assert client.get("/api/v1/catalogo-claves", headers=headers).status_code == 403
+
+
+def test_consulta_no_puede_escribir_en_ningun_lado(client, db):
+    headers = _consulta_headers(db)
+    p = _profesor(db, rfc="CON030303CC3", nombre="Profe Consulta 3")
 
     assert client.post("/api/v1/profesores", headers=headers, json={
         "rfc": "XXX010101XX1", "nombre": "X", "correo": "x@example.com", "regimen_fiscal": "612",
@@ -75,22 +85,12 @@ def test_consulta_no_puede_escribir_en_profesores_ni_facturas_ni_pagos(client, d
     assert client.put("/api/v1/pagos", headers=headers, json={
         "profesor_id": str(p.id), "mes": 6, "anio": 2026, "pagada": True,
     }).status_code == 403
-
-
-def test_consulta_no_puede_subir_ni_revalidar_facturas(client, db):
-    headers = _consulta_headers(db)
     assert client.post("/api/v1/facturas/upload", headers=headers,
                        files={"xml_file": ("f.xml", b"<x/>", "application/xml")}).status_code == 403
     assert client.post("/api/v1/facturas/revalidar-mes?mes=6&anio=2026", headers=headers).status_code == 403
     assert client.post("/api/v1/facturas/upload-montos", headers=headers,
                        data={"mes": "6", "anio": "2026"},
                        files={"file": ("m.xlsx", b"", "application/vnd.ms-excel")}).status_code == 403
-
-
-def test_consulta_puede_leer_catalogo_pero_no_escribirlo(client, db):
-    # Necesario para que la ficha de profesor muestre sus claves — pero solo lectura.
-    headers = _consulta_headers(db)
-    assert client.get("/api/v1/catalogo-claves", headers=headers).status_code == 200
     assert client.post("/api/v1/catalogo-claves", headers=headers, json={
         "clave": "99999999", "descripcion": "x", "tipo": "servicio",
     }).status_code == 403

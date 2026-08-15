@@ -17,22 +17,21 @@ api_router.include_router(
     dependencies=[Depends(require_profesor)],
 )
 
-# Revisor o superadmin (sin acceso de solo lectura para 'consulta')
+# Revisor o superadmin (sin acceso para 'consulta')
 _rev = {"dependencies": [Depends(require_revisor)]}
 api_router.include_router(watcher.router, prefix="/watcher", tags=["watcher IMAP"], **_rev)
+api_router.include_router(profesores.router, prefix="/profesores", tags=["profesores"], **_rev)
+api_router.include_router(profesor_claves.router, prefix="/profesores", tags=["profesor → claves"], **_rev)
+api_router.include_router(catalogo_claves.router, prefix="/catalogo-claves", tags=["catálogo de claves"], **_rev)
+api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"], **_rev)
 
-# Revisor, superadmin o consulta (lectura) — los endpoints de escritura de estos
-# routers están protegidos individualmente con require_revisor, ver cada archivo.
-# catalogo_claves también va aquí: su GET lo necesita la ficha de profesor para
-# mostrar las claves asignables (no es acceso a la pantalla "Catálogo SAT" en sí,
-# solo a listar — crear/editar/borrar siguen exigiendo require_revisor).
+# Revisor, superadmin o consulta (lectura) — 'consulta' solo ve el dashboard y
+# descarga el Excel de reportes (facturas/export-mes). El resto de endpoints de
+# facturas (listar, detalle, montos) se re-protegen individualmente con
+# require_revisor dentro de facturas.py; los de escritura ya lo estaban.
 _lec = {"dependencies": [Depends(require_lectura)]}
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"], **_lec)
-api_router.include_router(profesores.router, prefix="/profesores", tags=["profesores"], **_lec)
-api_router.include_router(profesor_claves.router, prefix="/profesores", tags=["profesor → claves"], **_lec)
-api_router.include_router(catalogo_claves.router, prefix="/catalogo-claves", tags=["catálogo de claves"], **_lec)
 api_router.include_router(facturas.router, prefix="/facturas", tags=["facturas"], **_lec)
-api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"], **_lec)
 
 # Solo superadmin
 _adm = {"dependencies": [Depends(require_superadmin)]}

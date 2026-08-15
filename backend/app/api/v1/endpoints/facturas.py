@@ -116,6 +116,7 @@ def listar_facturas(
     mes: Optional[int] = Query(None, ge=1, le=12),
     anio: Optional[int] = Query(None, ge=2000, le=2100),
     db: Session = Depends(get_db),
+    _: Usuario = Depends(require_revisor),
 ):
     from sqlalchemy import extract
 
@@ -166,7 +167,7 @@ def exportar_mes(
 
 
 @router.get("/{factura_id}", response_model=FacturaDetalleOut)
-def obtener_factura(factura_id: UUID, db: Session = Depends(get_db)):
+def obtener_factura(factura_id: UUID, db: Session = Depends(get_db), _: Usuario = Depends(require_revisor)):
     factura = db.query(Factura).filter(Factura.id == factura_id).first()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
@@ -443,6 +444,7 @@ def listar_montos_mensuales(
     mes: int,
     anio: int,
     db: Session = Depends(get_db),
+    _: Usuario = Depends(require_revisor),
 ):
     filas = (
         db.query(MontoMensual)

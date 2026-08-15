@@ -37,16 +37,12 @@ const grupoAdmin = {
   ],
 }
 
-// Rol de solo lectura: dashboard + profesores + facturas + pagos, sin nada de
-// configuración/operación (catálogo, montos, subir XML, correo) ni administración.
+// Rol de solo lectura: únicamente dashboard (estatus general + descarga de reportes).
 const gruposConsulta = [
   {
     titulo: 'Consulta',
     links: [
-      { href: '/dashboard',  label: 'Dashboard' },
-      { href: '/profesores', label: 'Profesores' },
-      { href: '/facturas',   label: 'Facturas' },
-      { href: '/pagos',      label: 'Pagos' },
+      { href: '/dashboard', label: 'Dashboard' },
     ],
   },
 ]

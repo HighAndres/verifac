@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import StatusBadge from '@/components/StatusBadge'
 import { useToast } from '@/components/Toast'
-import { getPagos, guardarPago, isAuthenticated, isConsulta } from '@/lib/api'
+import { getPagos, guardarPago, isAuthenticated } from '@/lib/api'
 
 interface FilaPago {
   profesor_id: string
@@ -40,11 +40,9 @@ export default function PagosPage() {
   const [mes, setMes] = useState(String(HOY.getMonth() + 1))
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
   const [busqueda, setBusqueda] = useState('')
-  const [consulta, setConsulta] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
-    setConsulta(isConsulta())
     load()
   }, [mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -196,12 +194,12 @@ export default function PagosPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-500 tabular-nums text-xs">{fmt(f.esperado)}</td>
                       <td className="px-4 py-3">
-                        <input type="checkbox" checked={f.pagada} disabled={guardando || consulta}
+                        <input type="checkbox" checked={f.pagada} disabled={guardando}
                           onChange={e => togglePagada(f, e.target.checked)}
                           className="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 disabled:cursor-default" />
                       </td>
                       <td className="px-4 py-3">
-                        <input type="date" value={f.fecha_pago ?? ''} disabled={!f.pagada || guardando || consulta}
+                        <input type="date" value={f.fecha_pago ?? ''} disabled={!f.pagada || guardando}
                           onChange={e => setFila(f.profesor_id, { fecha_pago: e.target.value || null })}
                           onBlur={() => f.pagada && persistir(f)}
                           className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white disabled:bg-slate-50 disabled:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -210,7 +208,7 @@ export default function PagosPage() {
                         {f.pagada ? 'Transferencia' : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <select value={f.incidencia ?? ''} disabled={guardando || consulta}
+                        <select value={f.incidencia ?? ''} disabled={guardando}
                           onChange={e => cambiarIncidencia(f, e.target.value)}
                           className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                           <option value="">—</option>
