@@ -26,6 +26,7 @@ interface ProfesorOpcion {
 const ROL_LABELS: Record<string, string> = {
   superadmin: 'Super Admin',
   revisor: 'Revisor',
+  consulta: 'Consulta',
   profesor: 'Profesor',
 }
 
@@ -41,6 +42,7 @@ export default function UsuariosPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [mostrarPassword, setMostrarPassword] = useState(false)
 
   useEffect(() => {
     if (!isSuperAdmin()) { router.push('/facturas'); return }
@@ -57,13 +59,13 @@ export default function UsuariosPage() {
   }
 
   function iniciarNuevo() {
-    setEditId(null); setForm(emptyForm); setError(''); setShowForm(true)
+    setEditId(null); setForm(emptyForm); setError(''); setMostrarPassword(false); setShowForm(true)
   }
 
   function iniciarEdicion(u: Usuario) {
     setEditId(u.id)
     setForm({ username: u.username, nombre: u.nombre, password: '', correo: u.correo ?? '', rol: u.rol, profesor_id: u.profesor_id ?? '' })
-    setError(''); setShowForm(true)
+    setError(''); setMostrarPassword(false); setShowForm(true)
   }
 
   async function guardar(e: React.FormEvent) {
@@ -156,9 +158,28 @@ export default function UsuariosPage() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Contraseña {editId && <span className="text-slate-400">(dejar vacío para no cambiar)</span>}
                 </label>
-                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  required={!editId} placeholder="••••••••"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <div className="relative">
+                  <input type={mostrarPassword ? 'text' : 'password'} value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    required={!editId} placeholder="••••••••"
+                    className="w-full border border-slate-300 rounded-lg pl-3 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <button type="button" onClick={() => setMostrarPassword(v => !v)}
+                    tabIndex={-1}
+                    title={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    {mostrarPassword ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-10-8-10-8a18.5 18.5 0 0 1 4.22-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <path d="m1 1 22 22" />
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 12s3-8 10-8 10 8 10 8-3 8-10 8-10-8-10-8Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Rol</label>
@@ -166,6 +187,7 @@ export default function UsuariosPage() {
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="revisor">Revisor — opera la validación</option>
                   <option value="superadmin">Super Admin — acceso total</option>
+                  <option value="consulta">Consulta — solo lectura, descarga reportes</option>
                   <option value="profesor">Profesor — solo su portal de consulta</option>
                 </select>
               </div>
@@ -222,6 +244,7 @@ export default function UsuariosPage() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         u.rol === 'superadmin' ? 'bg-purple-100 text-purple-700'
                           : u.rol === 'profesor' ? 'bg-teal-100 text-teal-700'
+                          : u.rol === 'consulta' ? 'bg-amber-100 text-amber-700'
                           : 'bg-blue-100 text-blue-700'
                       }`}>{ROL_LABELS[u.rol] ?? u.rol}</span>
                     </td>
