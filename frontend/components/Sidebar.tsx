@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { logout, getNombre, isSuperAdmin, isProfesor } from '@/lib/api'
+import { logout, getNombre, isSuperAdmin, isProfesor, isConsulta } from '@/lib/api'
 
 // Menú ordenado según el proceso de operación:
 // 1) Configuración inicial (una vez)  2) Operación mensual  3) Administración
@@ -37,10 +37,25 @@ const grupoAdmin = {
   ],
 }
 
+// Rol de solo lectura: dashboard + profesores + facturas + pagos, sin nada de
+// configuración/operación (catálogo, montos, subir XML, correo) ni administración.
+const gruposConsulta = [
+  {
+    titulo: 'Consulta',
+    links: [
+      { href: '/dashboard',  label: 'Dashboard' },
+      { href: '/profesores', label: 'Profesores' },
+      { href: '/facturas',   label: 'Facturas' },
+      { href: '/pagos',      label: 'Pagos' },
+    ],
+  },
+]
+
 export default function Sidebar() {
   const path = usePathname()
   const router = useRouter()
   const [superAdmin, setSuperAdmin] = useState(false)
+  const [consulta, setConsulta] = useState(false)
   const [nombre, setNombre] = useState('')
 
   useEffect(() => {
@@ -48,10 +63,11 @@ export default function Sidebar() {
     // Como todas las páginas admin montan este Sidebar, es el punto único de guarda.
     if (isProfesor()) { router.replace('/portal'); return }
     setSuperAdmin(isSuperAdmin())
+    setConsulta(isConsulta())
     setNombre(getNombre())
   }, [router])
 
-  const grupos = superAdmin ? [...gruposBase, grupoAdmin] : gruposBase
+  const grupos = consulta ? gruposConsulta : superAdmin ? [...gruposBase, grupoAdmin] : gruposBase
 
   return (
     <aside className="w-56 min-h-screen bg-slate-900 text-slate-100 flex flex-col shrink-0">
@@ -94,7 +110,7 @@ export default function Sidebar() {
 
       <div className="px-5 py-4 border-t border-slate-700">
         <p className="text-xs text-slate-300 font-medium truncate">{nombre || 'Usuario'}</p>
-        <p className="text-xs text-slate-500 mt-0.5 capitalize">{superAdmin ? 'Super Admin' : 'Revisor'}</p>
+        <p className="text-xs text-slate-500 mt-0.5 capitalize">{superAdmin ? 'Super Admin' : consulta ? 'Consulta' : 'Revisor'}</p>
         <button onClick={logout}
           className="mt-2 text-xs text-slate-400 hover:text-white transition-colors">
           Cerrar sesión

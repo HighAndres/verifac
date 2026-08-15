@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import StatusBadge from '@/components/StatusBadge'
 import { useToast } from '@/components/Toast'
-import { getFacturas, isAuthenticated } from '@/lib/api'
+import { getFacturas, isAuthenticated, isConsulta } from '@/lib/api'
 
 interface Factura {
   id: string
@@ -53,9 +53,11 @@ export default function FacturasPage() {
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
   const [busqueda, setBusqueda] = useState('')
   const busquedaRef = useRef(busqueda)
+  const [consulta, setConsulta] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
+    setConsulta(isConsulta())
     load()
   }, [estado, mes, anio]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -124,10 +126,12 @@ export default function FacturasPage() {
             <h2 className="text-2xl font-bold text-slate-800">{TITULOS[estado]}</h2>
             <p className="text-sm text-slate-500 mt-0.5">{total} factura{total !== 1 ? 's' : ''}</p>
           </div>
-          <Link href="/upload"
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-            + Subir XML
-          </Link>
+          {!consulta && (
+            <Link href="/upload"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+              + Subir XML
+            </Link>
+          )}
         </div>
 
         {/* Estado */}
@@ -193,8 +197,10 @@ export default function FacturasPage() {
             <p className="text-slate-500 text-sm text-center py-16">Cargando…</p>
           ) : facturas.length === 0 ? (
             <p className="text-slate-500 text-sm text-center py-16">
-              Sin facturas para los filtros seleccionados.{' '}
-              <Link href="/upload" className="text-blue-600 hover:underline">Subir XML.</Link>
+              Sin facturas para los filtros seleccionados.
+              {!consulta && (
+                <> <Link href="/upload" className="text-blue-600 hover:underline">Subir XML.</Link></>
+              )}
             </p>
           ) : (
             <>

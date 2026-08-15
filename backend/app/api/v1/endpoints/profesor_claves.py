@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_revisor
+from app.api.deps import require_lectura, require_revisor
 from app.db.session import get_db
 from app.models.catalogo_clave import CatalogoClave
 from app.models.profesor import Profesor
@@ -34,7 +34,7 @@ def _profesor_or_404(db: Session, profesor_id: UUID) -> Profesor:
 def listar_claves_profesor(
     profesor_id: UUID,
     db: Session = Depends(get_db),
-    _: object = Depends(require_revisor),
+    _: object = Depends(require_lectura),
 ):
     _profesor_or_404(db, profesor_id)
     rows = (

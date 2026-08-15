@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_revisor
+from app.api.deps import require_lectura, require_revisor
 from app.db.session import get_db
 from app.models.factura import Factura
 from app.models.monto_mensual import MontoMensual
@@ -150,7 +150,7 @@ def exportar_mes(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000, le=2100),
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_revisor),
+    user: Usuario = Depends(require_lectura),
 ):
     from fastapi.responses import Response as _Response
     from app.services.export_excel import generar_excel_mes, nombre_archivo

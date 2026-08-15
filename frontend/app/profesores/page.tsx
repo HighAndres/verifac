@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
-import { getProfesores, createProfesor, createUsuario, isAuthenticated, isSuperAdmin } from '@/lib/api'
+import { getProfesores, createProfesor, createUsuario, isAuthenticated, isSuperAdmin, isConsulta } from '@/lib/api'
 import { useToast } from '@/components/Toast'
 
 interface Profesor {
@@ -44,9 +44,11 @@ export default function ProfesoresPage() {
   const [cuentaForm, setCuentaForm] = useState(emptyCuentaForm)
   const [cuentaSaving, setCuentaSaving] = useState(false)
   const [cuentaError, setCuentaError] = useState('')
+  const [consulta, setConsulta] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
+    setConsulta(isConsulta())
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -147,10 +149,12 @@ export default function ProfesoresPage() {
                 Buscar
               </button>
             </form>
-            <button onClick={() => { setShowForm(true); setFormError('') }}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-              + Nuevo profesor
-            </button>
+            {!consulta && (
+              <button onClick={() => { setShowForm(true); setFormError('') }}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                + Nuevo profesor
+              </button>
+            )}
           </div>
         </div>
 

@@ -17,7 +17,7 @@ from fastapi import Request
 
 router = APIRouter()
 
-_ROLES = ("superadmin", "revisor", "profesor")
+_ROLES = ("superadmin", "revisor", "profesor", "consulta")
 
 
 def _validar_correo(db: Session, correo_raw: Optional[str], excluir_usuario: Optional[UUID] = None) -> str:

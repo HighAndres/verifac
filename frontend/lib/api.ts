@@ -62,6 +62,8 @@ export function getRol(): string { return (typeof window !== 'undefined' ? local
 export function getNombre(): string { return (typeof window !== 'undefined' ? localStorage.getItem('cfdi_nombre') : null) ?? '' }
 export function isSuperAdmin(): boolean { return getRol() === 'superadmin' }
 export function isProfesor(): boolean { return getRol() === 'profesor' }
+export function isConsulta(): boolean { return getRol() === 'consulta' }
+export function isRevisor(): boolean { return getRol() === 'revisor' }
 
 // A dónde mandar tras iniciar sesión según el rol.
 export function rutaInicioPorRol(): string { return getRol() === 'profesor' ? '/portal' : '/dashboard' }

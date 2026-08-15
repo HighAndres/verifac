@@ -50,6 +50,18 @@ def require_revisor(user: Usuario = Depends(get_current_user)) -> Usuario:
     return user
 
 
+def require_lectura(user: Usuario = Depends(get_current_user)) -> Usuario:
+    """Permite superadmin, revisor y consulta — acceso de solo lectura (GET).
+    Los endpoints de escritura de estos mismos routers siguen protegidos
+    individualmente con require_revisor/require_superadmin."""
+    if user.rol not in ("superadmin", "revisor", "consulta"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado",
+        )
+    return user
+
+
 def require_profesor(user: Usuario = Depends(get_current_user)) -> Usuario:
     """Solo el rol 'profesor' — para el portal de consulta."""
     if user.rol != "profesor":
