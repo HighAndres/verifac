@@ -32,12 +32,18 @@ def login(
     request: Request = None,
 ):
     ip = get_client_ip(request) if request else "unknown"
-    rl_check(ip)   # máximo 10 intentos por IP en 15 min
+    correo = normalizar_correo(form.username)
+
+    try:
+        rl_check(ip)   # máximo 10 intentos por IP en 15 min
+    except HTTPException:
+        audit.log(db, username=correo or form.username, accion="LOGIN_BLOCKED",
+                  detalle="IP bloqueada temporalmente por demasiados intentos fallidos", ip=ip)
+        raise
 
     # El acceso es por CORREO (el campo del formulario OAuth2 se llama "username"
     # por el estándar, pero contiene el correo). Se compara normalizado y sin
     # distinguir mayúsculas; los correos placeholder no son credencial válida.
-    correo = normalizar_correo(form.username)
     user = None
     if correo and not es_placeholder(correo):
         user = db.query(Usuario).filter(
@@ -46,6 +52,9 @@ def login(
         ).first()
 
     if not user or not verify_password(form.password, user.password_hash):
+        audit.log(db, username=correo or form.username, accion="LOGIN_FAILED",
+                  detalle="Correo no encontrado o inactivo" if not user else "Contraseña incorrecta",
+                  ip=ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
