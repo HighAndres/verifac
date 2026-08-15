@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, require_revisor
+from app.api.deps import get_client_ip, get_db, require_revisor
 from app.models.catalogo_clave import CatalogoClave
 from app.models.usuario import Usuario
 from app.schemas.catalogo_clave import (
@@ -62,7 +62,8 @@ def crear_clave(
     db.flush()
     audit.log(db, username=user.username, rol=user.rol, accion="CREATE",
               recurso="catalogo_clave", recurso_id=str(obj.id),
-              detalle=f"Agregó clave SAT {payload.clave} ({payload.tipo})")
+              detalle=f"Agregó clave SAT {payload.clave} ({payload.tipo})",
+              ip=get_client_ip(request))
     db.commit()
     db.refresh(obj)
     return obj
@@ -103,7 +104,8 @@ def crear_claves_lote(
         db.flush()
         audit.log(db, username=user.username, rol=user.rol, accion="CREATE",
                   recurso="catalogo_clave", recurso_id="lote",
-                  detalle=f"Cargó {creadas} claves SAT en lote ({omitidas} ya existían)")
+                  detalle=f"Cargó {creadas} claves SAT en lote ({omitidas} ya existían)",
+                  ip=get_client_ip(request))
         db.commit()
 
     return CatalogoClaveLoteOut(creadas=creadas, existentes=omitidas, errores=errores)
@@ -123,7 +125,8 @@ def actualizar_clave(
         setattr(obj, campo, valor)
     audit.log(db, username=user.username, rol=user.rol, accion="UPDATE",
               recurso="catalogo_clave", recurso_id=str(clave_id),
-              detalle=f"Editó clave {obj.clave}: {list(cambios.keys())}")
+              detalle=f"Editó clave {obj.clave}: {list(cambios.keys())}",
+              ip=get_client_ip(request))
     db.commit()
     db.refresh(obj)
     return obj
@@ -140,5 +143,6 @@ def desactivar_clave(
     obj.activo = False
     audit.log(db, username=user.username, rol=user.rol, accion="DELETE",
               recurso="catalogo_clave", recurso_id=str(clave_id),
-              detalle=f"Desactivó clave {obj.clave}")
+              detalle=f"Desactivó clave {obj.clave}",
+              ip=get_client_ip(request))
     db.commit()

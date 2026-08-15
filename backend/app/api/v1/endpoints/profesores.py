@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, require_revisor
+from app.api.deps import get_client_ip, get_db, require_revisor
 from app.models.profesor import Profesor
 from app.models.usuario import Usuario
 from app.schemas.profesor import ProfesorCreate, ProfesorListOut, ProfesorOut, ProfesorUpdate
@@ -17,6 +17,7 @@ router = APIRouter()
 @router.post("/importar", summary="Alta/actualización masiva de profesores desde Excel base (.xlsx)")
 def importar(
     file: UploadFile,
+    request: Request,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_revisor),
 ):
@@ -36,7 +37,8 @@ def importar(
     audit.log(db, username=user.username, rol=user.rol, accion="IMPORT",
               recurso="profesores", recurso_id=file.filename,
               detalle=f"creados={res.creados} actualizados={res.actualizados} "
-                      f"claves_nuevas={res.claves_nuevas_catalogo} errores={len(res.errores)}")
+                      f"claves_nuevas={res.claves_nuevas_catalogo} errores={len(res.errores)}",
+              ip=get_client_ip(request))
 
     return {
         "total_filas": res.total_filas,
@@ -111,7 +113,8 @@ def crear_profesor(
     db.flush()
     audit.log(db, username=user.username, rol=user.rol, accion="CREATE",
               recurso="profesor", recurso_id=str(profesor.id),
-              detalle=f"Creó profesor RFC={payload.rfc} nombre={payload.nombre}")
+              detalle=f"Creó profesor RFC={payload.rfc} nombre={payload.nombre}",
+              ip=get_client_ip(request))
     db.commit()
     db.refresh(profesor)
     return profesor
@@ -151,7 +154,8 @@ def actualizar_profesor(
 
     audit.log(db, username=user.username, rol=user.rol, accion="UPDATE",
               recurso="profesor", recurso_id=str(profesor_id),
-              detalle=f"Editó {list(cambios.keys())} de RFC={profesor.rfc}")
+              detalle=f"Editó {list(cambios.keys())} de RFC={profesor.rfc}",
+              ip=get_client_ip(request))
     db.commit()
     db.refresh(profesor)
     return profesor
@@ -168,5 +172,6 @@ def desactivar_profesor(
     profesor.activo = False
     audit.log(db, username=user.username, rol=user.rol, accion="DELETE",
               recurso="profesor", recurso_id=str(profesor_id),
-              detalle=f"Desactivó profesor RFC={profesor.rfc}")
+              detalle=f"Desactivó profesor RFC={profesor.rfc}",
+              ip=get_client_ip(request))
     db.commit()
