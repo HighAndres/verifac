@@ -553,6 +553,13 @@ export default function PortalPage() {
         </section>
       </main>
 
+      <footer className="max-w-4xl mx-auto px-6 pb-8 text-center">
+        <a href="https://mirmibug.com" target="_blank" rel="noopener noreferrer"
+          className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
+          Desarrollado por mirmibug.com
+        </a>
+      </footer>
+
       {/* Soporte — botón flotante sutil, siempre visible */}
       <a
         href={`mailto:honorarios@thehumantalent.com?subject=${encodeURIComponent(

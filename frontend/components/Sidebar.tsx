@@ -112,6 +112,15 @@ export default function Sidebar() {
           Cerrar sesión
         </button>
       </div>
+
+      {consulta && (
+        <div className="px-5 py-3 border-t border-slate-800">
+          <a href="https://mirmibug.com" target="_blank" rel="noopener noreferrer"
+            className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+            Desarrollado por mirmibug.com
+          </a>
+        </div>
+      )}
     </aside>
   )
 }
