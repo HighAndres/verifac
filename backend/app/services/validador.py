@@ -17,7 +17,6 @@ from app.models.profesor_clave import ProfesorClave
 from app.services.cfdi_parser import CFDIData
 
 # ── Reglas fijas de negocio ───────────────────────────────────────────────────
-CLAVES_UNIDAD_VALIDAS = {"E48", "ACT"}
 IVA_TASA = Decimal("0.16")
 TOLERANCIA = Decimal(str(settings.TOLERANCIA_MONTO))   # margen de redondeo (configurable)
 FORMA_PAGO_ESPERADA = "03"     # Transferencia electrónica
@@ -56,6 +55,17 @@ def _claves_servicio_autorizadas(profesor: Optional[Profesor], db: Session) -> s
         c.clave
         for c in db.query(CatalogoClave)
         .filter(CatalogoClave.tipo == "servicio", CatalogoClave.activo == True)  # noqa: E712
+        .all()
+    }
+
+
+def _claves_unidad_validas(db: Session) -> set[str]:
+    """Catálogo global tipo 'unidad' activo — global para todos los profesores
+    (no configurable por profesor, a diferencia de las claves de servicio)."""
+    return {
+        c.clave
+        for c in db.query(CatalogoClave)
+        .filter(CatalogoClave.tipo == "unidad", CatalogoClave.activo == True)  # noqa: E712
         .all()
     }
 
@@ -144,6 +154,8 @@ def validar_cfdi(cfdi: CFDIData, db: Session,
     # ── Clave de servicio y Unidad por concepto ───────────────────────────────
     claves_servicio = _claves_servicio_autorizadas(profesor, db)
     claves_desc = ", ".join(sorted(claves_servicio)) or "(ninguna registrada)"
+    claves_unidad = _claves_unidad_validas(db)
+    claves_unidad_desc = ", ".join(sorted(claves_unidad)) or "(ninguna registrada)"
 
     for i, concepto in enumerate(cfdi.conceptos):
         sufijo = f" [{i}]" if len(cfdi.conceptos) > 1 else ""
@@ -158,8 +170,8 @@ def validar_cfdi(cfdi: CFDIData, db: Session,
         check(
             f"Unidad{sufijo}",
             concepto.clave_unidad,
-            ", ".join(sorted(CLAVES_UNIDAD_VALIDAS)),
-            concepto.clave_unidad in CLAVES_UNIDAD_VALIDAS,
+            claves_unidad_desc,
+            concepto.clave_unidad in claves_unidad,
         )
 
     # ── IVA Trasladado ────────────────────────────────────────────────────────
