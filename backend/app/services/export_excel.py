@@ -28,6 +28,18 @@ REGIMEN_DESC = {
 UNIDAD_DESC = {"E48": "Unidad de servicio", "ACT": "Actividad"}
 
 _MONEY = "#,##0.00"
+_PREFIJOS_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _celda_segura(valor):
+    """Neutraliza inyección de fórmulas (CWE-1236): antepone una comilla simple a
+    cualquier string que empiece con un carácter que Excel interprete como inicio
+    de fórmula. Aplica a campos que vienen del XML que sube el propio profesor
+    (nombre emisor/receptor, descripción del concepto) o del layout que sube el
+    revisor — ninguno se valida como texto plano antes de llegar aquí."""
+    if isinstance(valor, str) and valor.startswith(_PREFIJOS_FORMULA):
+        return "'" + valor
+    return valor
 
 
 def _hoja_encabezado(ws, headers: list[str]) -> None:
@@ -98,7 +110,7 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
             (total_fact - Decimal(str(m.total))) if total_fact is not None else None
         )
         ws.append([
-            m.nombre_layout, rfc, m.regimen_fiscal, m.categoria,
+            _celda_segura(m.nombre_layout), rfc, m.regimen_fiscal, _celda_segura(m.categoria),
             float(m.subtotal), float(m.iva_trasladado), float(m.iva_retenido),
             float(m.isr_retenido), float(m.total),
             estatus,
@@ -137,9 +149,9 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
         ws2.append([
             categoria_por_rfc.get(f.rfc_emisor),
             f.fecha_emision.strftime("%Y-%m-%d") if f.fecha_emision else None,
-            f.uso_cfdi, f.clave_servicio, f.descripcion_concepto,
+            f.uso_cfdi, f.clave_servicio, _celda_segura(f.descripcion_concepto),
             f.regimen_emisor, REGIMEN_DESC.get(f.regimen_emisor or "", ""),
-            f.nombre_emisor, None, None, f.nombre_receptor,
+            _celda_segura(f.nombre_emisor), None, None, _celda_segura(f.nombre_receptor),
             f.clave_unidad, UNIDAD_DESC.get(f.clave_unidad or "", ""), 1,
             float(f.subtotal or 0), float(f.iva_trasladado or 0),
             float(f.iva_retenido or 0), float(f.isr_retenido or 0), float(f.total or 0),
