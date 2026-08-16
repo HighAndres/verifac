@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { useToast } from '@/components/Toast'
-import { getWatcherConfig, updateWatcherConfig, isAuthenticated, isSuperAdmin } from '@/lib/api'
+import { getWatcherConfig, updateWatcherConfig, getCargaXml, actualizarCargaXml, isAuthenticated, isSuperAdmin } from '@/lib/api'
 
 interface Config {
   imap_host: string
@@ -23,12 +23,30 @@ export default function ConfigCorreoPage() {
   const toast = useToast()
   const [cfg, setCfg] = useState<Config | null>(null)
   const [saving, setSaving] = useState(false)
+  const [cargaXmlActiva, setCargaXmlActiva] = useState<boolean | null>(null)
+  const [savingCargaXml, setSavingCargaXml] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
     if (!isSuperAdmin()) { router.push('/correo'); return }
     getWatcherConfig().then(setCfg).catch(() => toast('No se pudo cargar la configuración', 'error'))
+    getCargaXml().then(r => setCargaXmlActiva(r.carga_xml_portal_activa)).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleCargaXml() {
+    if (cargaXmlActiva === null) return
+    const nuevo = !cargaXmlActiva
+    setSavingCargaXml(true)
+    try {
+      const res = await actualizarCargaXml(nuevo)
+      setCargaXmlActiva(res.carga_xml_portal_activa)
+      toast(`Carga de facturas del portal ${res.carga_xml_portal_activa ? 'activada' : 'desactivada'}`, 'success')
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al guardar', 'error')
+    } finally {
+      setSavingCargaXml(false)
+    }
+  }
 
   function set<K extends keyof Config>(k: K, v: Config[K]) {
     setCfg(c => (c ? { ...c, [k]: v } : c))
@@ -69,6 +87,31 @@ export default function ConfigCorreoPage() {
           <p className="text-sm text-slate-500 mt-0.5">
             Buzón IMAP del que Verifac lee las facturas. Solo super admin.
           </p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Carga de facturas (portal)</h3>
+          <p className="text-xs text-slate-400 mb-4">
+            Apaga esto para que ningún profesor pueda subir su factura desde el portal — útil para
+            cerrar la recepción del mes o durante mantenimiento. No afecta la carga manual desde
+            Facturas ni el correo.
+          </p>
+          {cargaXmlActiva === null ? (
+            <p className="text-slate-400 text-sm">Cargando…</p>
+          ) : (
+            <button
+              onClick={toggleCargaXml}
+              disabled={savingCargaXml}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                cargaXmlActiva
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'
+              }`}
+            >
+              <span className={`inline-block w-2.5 h-2.5 rounded-full ${cargaXmlActiva ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              {savingCargaXml ? 'Guardando…' : cargaXmlActiva ? 'Activada — clic para desactivar' : 'Desactivada — clic para activar'}
+            </button>
+          )}
         </div>
 
         {!cfg ? (

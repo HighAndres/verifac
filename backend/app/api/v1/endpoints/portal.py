@@ -23,6 +23,7 @@ from app.models.validacion_detalle import ValidacionDetalle
 from app.schemas.factura import FacturaDetalleOut, FacturaListOut, FacturaOut
 from app.services import audit
 from app.services.cfdi_parser import parsear_cfdi
+from app.services.config_app import obtener_config_app
 from app.services.factura_portal import FacturaAjena, FacturaDuplicada, registrar_factura_portal
 
 router = APIRouter()
@@ -37,13 +38,18 @@ class MiPerfilOut(BaseModel):
     correo: str
     regimen_fiscal: str
     drive_url: Optional[str] = None
+    carga_xml_activa: bool = True
 
     model_config = {"from_attributes": True}
 
 
 @router.get("/mi-perfil", response_model=MiPerfilOut)
-def mi_perfil(profesor: Profesor = Depends(get_current_profesor)):
-    return profesor
+def mi_perfil(db: Session = Depends(get_db), profesor: Profesor = Depends(get_current_profesor)):
+    cfg = obtener_config_app(db)
+    return {
+        **MiPerfilOut.model_validate(profesor).model_dump(exclude={"carga_xml_activa"}),
+        "carga_xml_activa": cfg.carga_xml_portal_activa,
+    }
 
 
 @router.get("/mis-facturas", response_model=FacturaListOut)
@@ -106,6 +112,12 @@ def subir_factura(
     profesor: Profesor = Depends(get_current_profesor),
     user: Usuario = Depends(require_profesor),
 ):
+    if not obtener_config_app(db).carga_xml_portal_activa:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail="La carga de facturas está temporalmente desactivada. Contacta a soporte si necesitas subir tu factura.",
+        )
+
     if not (xml.filename or "").lower().endswith(".xml"):
         raise HTTPException(status_code=422, detail="El archivo XML debe tener extensión .xml")
 

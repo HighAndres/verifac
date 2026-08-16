@@ -301,3 +301,15 @@ export async function updateWatcherConfig(data: object) {
     body: JSON.stringify(data),
   }))
 }
+
+export async function getCargaXml() {
+  return handle(await fetch(`${API}/api/v1/configuracion/carga-xml`, { headers: authHeaders() }))
+}
+
+export async function actualizarCargaXml(activa: boolean) {
+  return handle(await fetch(`${API}/api/v1/configuracion/carga-xml`, {
+    method: 'PUT',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ carga_xml_portal_activa: activa }),
+  }))
+}

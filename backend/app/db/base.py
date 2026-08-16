@@ -8,4 +8,5 @@ from app.models.usuario import Usuario  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
 from app.models.monto_mensual import MontoMensual  # noqa: F401
 from app.models.configuracion_correo import ConfiguracionCorreo  # noqa: F401
+from app.models.configuracion_app import ConfiguracionApp  # noqa: F401
 from app.models.pago import Pago  # noqa: F401

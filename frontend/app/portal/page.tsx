@@ -16,6 +16,7 @@ interface Perfil {
   correo: string
   regimen_fiscal: string
   drive_url: string | null
+  carga_xml_activa: boolean
 }
 
 interface Factura {
@@ -382,30 +383,38 @@ export default function PortalPage() {
               Sube el <b>XML</b> de tu factura (CFDI 4.0). El sistema la valida al instante y te dice si está bien o qué corregir.
             </p>
           </div>
-          <form onSubmit={handleSubir} className="p-5">
-            <div className="max-w-sm">
-              <ArchivoField
-                label="Archivo XML (CFDI 4.0)"
-                accept=".xml"
-                file={xmlFile}
-                onChange={setXmlFile}
-                inputRef={xmlInputRef}
-              />
-              {/* Oculto temporalmente: carga de PDF (se reactivará más adelante)
-              <ArchivoField
-                label="Archivo PDF (opcional)"
-                accept=".pdf"
-                file={pdfFile}
-                onChange={setPdfFile}
-                required={false}
-              />
-              */}
+          {perfil && !perfil.carga_xml_activa ? (
+            <div className="p-5">
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                La carga de facturas está temporalmente desactivada. Contacta a soporte si necesitas subir tu factura.
+              </p>
             </div>
-            <button type="submit" disabled={subiendo || !xmlFile}
-              className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
-              {subiendo ? 'Validando…' : 'Validar y enviar'}
-            </button>
-          </form>
+          ) : (
+            <form onSubmit={handleSubir} className="p-5">
+              <div className="max-w-sm">
+                <ArchivoField
+                  label="Archivo XML (CFDI 4.0)"
+                  accept=".xml"
+                  file={xmlFile}
+                  onChange={setXmlFile}
+                  inputRef={xmlInputRef}
+                />
+                {/* Oculto temporalmente: carga de PDF (se reactivará más adelante)
+                <ArchivoField
+                  label="Archivo PDF (opcional)"
+                  accept=".pdf"
+                  file={pdfFile}
+                  onChange={setPdfFile}
+                  required={false}
+                />
+                */}
+              </div>
+              <button type="submit" disabled={subiendo || !xmlFile}
+                className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+                {subiendo ? 'Validando…' : 'Validar y enviar'}
+              </button>
+            </form>
+          )}
           {resultado && <ChecksTabla f={resultado} onClose={() => setResultado(null)} />}
         </section>
 

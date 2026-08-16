@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import require_lectura, require_profesor, require_revisor, require_superadmin
 from app.api.v1.endpoints import (
-    auth, auditoria, catalogo_claves, dashboard, facturas,
+    auth, auditoria, catalogo_claves, configuracion, dashboard, facturas,
     pagos, portal, profesor_claves, profesores, usuarios, watcher,
 )
 
@@ -37,3 +37,4 @@ api_router.include_router(facturas.router, prefix="/facturas", tags=["facturas"]
 _adm = {"dependencies": [Depends(require_superadmin)]}
 api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"], **_adm)
 api_router.include_router(auditoria.router, prefix="/auditoria", tags=["auditoría"], **_adm)
+api_router.include_router(configuracion.router, prefix="/configuracion", tags=["configuración"], **_adm)
