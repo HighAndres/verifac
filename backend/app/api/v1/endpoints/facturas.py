@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_lectura, require_revisor
+from app.api.deps import get_client_ip, require_lectura, require_revisor, require_superadmin
 from app.db.session import get_db
 from app.models.factura import Factura
 from app.models.monto_mensual import MontoMensual
@@ -113,6 +113,7 @@ def listar_facturas(
     estado: Optional[str] = Query(None),
     origen: Optional[str] = Query(None, description="xml (correo) | portal (subida del profesor)"),
     rfc_emisor: Optional[str] = Query(None),
+    buscar: Optional[str] = Query(None, alias="q", description="Busca por nombre del emisor o RFC (contiene)"),
     mes: Optional[int] = Query(None, ge=1, le=12),
     anio: Optional[int] = Query(None, ge=2000, le=2100),
     db: Session = Depends(get_db),
@@ -130,6 +131,11 @@ def listar_facturas(
         q = q.filter(Factura.origen == origen)
     if rfc_emisor:
         q = q.filter(Factura.rfc_emisor == rfc_emisor.upper())
+    if buscar and buscar.strip():
+        # La caja de búsqueda del frontend manda `q`: nombre del emisor o RFC.
+        from sqlalchemy import or_
+        patron = f"%{buscar.strip()}%"
+        q = q.filter(or_(Factura.nombre_emisor.ilike(patron), Factura.rfc_emisor.ilike(patron)))
     if mes:
         q = q.filter(extract("month", Factura.fecha_emision) == mes)
     if anio:
@@ -174,6 +180,37 @@ def obtener_factura(factura_id: UUID, db: Session = Depends(get_db), _: Usuario 
 
     detalles = db.query(ValidacionDetalle).filter(ValidacionDetalle.factura_id == factura_id).all()
     return {**FacturaOut.model_validate(factura).model_dump(), "detalles": detalles}
+
+
+@router.delete(
+    "/{factura_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Elimina una factura defectuosa para que el profesor pueda volver a subirla",
+)
+def eliminar_factura(
+    factura_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(require_superadmin),
+):
+    """Caso de uso: la factura quedó rechazada por un layout erróneo o un XML
+    defectuoso y el UUID bloquea la re-subida (candado de duplicados). Borra la
+    factura y sus detalles de validación; queda rastro completo en la bitácora."""
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    uuid_cfdi = factura.uuid_cfdi
+    detalle = (
+        f"Eliminó factura estado={factura.estado} emisor={factura.rfc_emisor} "
+        f"origen={factura.origen} total={factura.total}"
+    )
+    db.query(ValidacionDetalle).filter(ValidacionDetalle.factura_id == factura.id).delete()
+    db.delete(factura)
+    audit.log(db, username=admin.username, rol=admin.rol, accion="DELETE",
+              recurso="factura", recurso_id=uuid_cfdi, detalle=detalle,
+              ip=get_client_ip(request))
+    db.commit()
 
 
 @router.post(

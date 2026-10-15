@@ -13,6 +13,8 @@ from app.core.security import hash_password
 from app.models.profesor import Profesor
 from app.models.usuario import Usuario
 from app.services import audit
+from app.services.config_correo import password_configurado
+from app.services.credenciales import generar_credenciales_profesores, regenerar_y_enviar
 from fastapi import Request
 
 router = APIRouter()
@@ -147,6 +149,69 @@ def crear_usuario(
     db.commit()
     db.refresh(user)
     return UsuarioOut.from_orm_custom(user)
+
+
+@router.post(
+    "/generar-credenciales-profesores",
+    summary="Crea cuentas para los profesores sin acceso y les envía sus credenciales por correo",
+)
+def generar_credenciales(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(require_superadmin),
+):
+    if not password_configurado():
+        raise HTTPException(
+            status_code=422,
+            detail="El correo de envío no está configurado (falta el App Password del buzón)",
+        )
+
+    res = generar_credenciales_profesores(db)
+    audit.log(db, username=admin.username, rol=admin.rol, accion="CREATE",
+              recurso="credenciales_profesores",
+              recurso_id=f"creados={res['creados']}",
+              detalle=f"creados={res['creados']} errores={res['errores']} omitidos={res['omitidos']}",
+              ip=get_client_ip(request))
+    return res
+
+
+@router.post(
+    "/{user_id}/enviar-credenciales",
+    summary="Genera una contraseña nueva para la cuenta y la envía a su correo",
+)
+def enviar_credenciales_usuario(
+    user_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(require_superadmin),
+):
+    if not password_configurado():
+        raise HTTPException(
+            status_code=422,
+            detail="El correo de envío no está configurado (falta el App Password del buzón)",
+        )
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    try:
+        correo = regenerar_y_enviar(db, user)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        # Falló el envío: se revierte el cambio de hash, la contraseña anterior sigue vigente.
+        db.rollback()
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo enviar el correo; la contraseña no cambió. Intenta de nuevo.",
+        )
+
+    audit.log(db, username=admin.username, rol=admin.rol, accion="UPDATE",
+              recurso="usuario", recurso_id=str(user.id),
+              detalle=f"Regeneró la contraseña de {user.username} y la envió a {correo}",
+              ip=get_client_ip(request))
+    return {"enviado_a": correo}
 
 
 @router.patch("/{user_id}", response_model=UsuarioOut)

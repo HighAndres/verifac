@@ -12,7 +12,11 @@ from app.db.session import engine
 def db():
     connection = engine.connect()
     trans = connection.begin()
-    session = Session(bind=connection, autoflush=False)
+    # create_savepoint: los commit()/rollback() internos de los servicios (envío
+    # de correos, credenciales) operan sobre SAVEPOINTs y la transacción externa
+    # sigue viva, así el rollback final sí limpia todo y nada escapa a la BD.
+    session = Session(bind=connection, autoflush=False,
+                      join_transaction_mode="create_savepoint")
     try:
         yield session
     finally:

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import StatusBadge from '@/components/StatusBadge'
 import { useToast } from '@/components/Toast'
-import { getPagos, guardarPago, isAuthenticated } from '@/lib/api'
+import { descargarExcelPagos, getPagos, guardarPago, isAuthenticated } from '@/lib/api'
 
 interface FilaPago {
   profesor_id: string
@@ -40,6 +40,18 @@ export default function PagosPage() {
   const [mes, setMes] = useState(String(HOY.getMonth() + 1))
   const [anio, setAnio] = useState(String(ANIO_ACTUAL))
   const [busqueda, setBusqueda] = useState('')
+  const [descargando, setDescargando] = useState(false)
+
+  async function descargarExcel() {
+    setDescargando(true)
+    try {
+      await descargarExcelPagos(Number(mes), Number(anio))
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al descargar el reporte', 'error')
+    } finally {
+      setDescargando(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
@@ -146,6 +158,10 @@ export default function PagosPage() {
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
               {ANIOS.map(a => <option key={a} value={String(a)}>{a}</option>)}
             </select>
+            <button onClick={descargarExcel} disabled={descargando || loading}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+              {descargando ? 'Descargando…' : '⬇ Excel'}
+            </button>
           </div>
         </div>
 

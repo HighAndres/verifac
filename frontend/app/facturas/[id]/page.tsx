@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import StatusBadge from '@/components/StatusBadge'
-import { getFactura, isAuthenticated } from '@/lib/api'
+import { useToast } from '@/components/Toast'
+import { deleteFactura, getFactura, isAuthenticated, isSuperAdmin } from '@/lib/api'
 
 interface Detalle {
   id: string
@@ -49,9 +50,29 @@ const REGIMENES: Record<string, string> = {
 
 export default function FacturaDetallePage() {
   const router = useRouter()
+  const toast = useToast()
   const { id } = useParams<{ id: string }>()
   const [factura, setFactura] = useState<FacturaDetalle | null>(null)
   const [loading, setLoading] = useState(true)
+  const [eliminando, setEliminando] = useState(false)
+
+  async function eliminar() {
+    if (!factura) return
+    if (!confirm(
+      `¿Eliminar esta factura de ${factura.nombre_emisor ?? factura.rfc_emisor}?\n\n` +
+      'Se libera el folio fiscal (UUID) para que el profesor pueda volver a subirla. ' +
+      'La acción queda registrada en la bitácora.'
+    )) return
+    setEliminando(true)
+    try {
+      await deleteFactura(factura.id)
+      toast('Factura eliminada; el profesor ya puede volver a subirla', 'success')
+      router.push('/facturas')
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al eliminar', 'error')
+      setEliminando(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
@@ -98,6 +119,13 @@ export default function FacturaDetallePage() {
           <div className="text-right">
             <p className="text-2xl font-bold text-slate-800">{fmt(factura.total)}</p>
             <p className="text-xs text-slate-400">Total factura</p>
+            {isSuperAdmin() && (
+              <button onClick={eliminar} disabled={eliminando}
+                title="Libera el UUID para que el profesor pueda volver a subir su factura corregida"
+                className="mt-3 text-xs font-medium text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 disabled:opacity-50 transition-colors">
+                {eliminando ? 'Eliminando…' : 'Eliminar factura'}
+              </button>
+            )}
           </div>
         </div>
 

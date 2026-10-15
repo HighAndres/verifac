@@ -51,7 +51,9 @@ Este es un mensaje automático de Verifac; por favor no responda a este correo.
     return asunto, cuerpo
 
 
-def _enviar_smtp(destinatario: str, asunto: str, cuerpo: str) -> None:
+def enviar_smtp(destinatario: str, asunto: str, cuerpo: str) -> None:
+    """Envío simple por SMTP con la cuenta del watcher. Público: también lo usa
+    el envío de credenciales (services/credenciales.py)."""
     msg = EmailMessage()
     msg["From"] = settings.IMAP_USER
     msg["To"] = destinatario
@@ -126,7 +128,7 @@ def procesar_confirmaciones(db: Session, forzar: bool = False) -> dict:
         destinatario = profesor.correo
         try:
             asunto, cuerpo = _cuerpo(profesor, f)
-            _enviar_smtp(destinatario, asunto, cuerpo)
+            enviar_smtp(destinatario, asunto, cuerpo)
             f.confirmacion_enviada = datetime.now(timezone.utc)
             db.commit()
             enviadas += 1

@@ -3,7 +3,27 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getProfesores, isSuperAdmin } from '@/lib/api'
+import { useToast } from '@/components/Toast'
+import {
+  getUsuarios, createUsuario, updateUsuario, deleteUsuario, getProfesores, isSuperAdmin,
+  generarCredencialesProfesores, enviarCredenciales,
+} from '@/lib/api'
+
+interface DetalleCredencial {
+  nombre: string
+  rfc: string
+  correo?: string
+  motivo?: string
+}
+
+interface ResultadoCredenciales {
+  creados: number
+  errores: number
+  omitidos: number
+  detalle_creados: DetalleCredencial[]
+  detalle_errores: DetalleCredencial[]
+  detalle_omitidos: DetalleCredencial[]
+}
 
 interface Usuario {
   id: string
@@ -43,6 +63,10 @@ export default function UsuariosPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
+  const [generando, setGenerando] = useState(false)
+  const [resultadoCred, setResultadoCred] = useState<ResultadoCredenciales | null>(null)
+  const [enviandoId, setEnviandoId] = useState<string | null>(null)
+  const toast = useToast()
 
   useEffect(() => {
     if (!isSuperAdmin()) { router.push('/facturas'); return }
@@ -104,6 +128,38 @@ export default function UsuariosPage() {
     await load()
   }
 
+  async function generarCredenciales() {
+    if (!confirm(
+      'Se creará una cuenta (rol Profesor) para cada profesor activo con correo real que aún no tenga acceso, ' +
+      'y se le enviará su contraseña por correo.\n\n¿Continuar?'
+    )) return
+    setGenerando(true); setResultadoCred(null)
+    try {
+      const res: ResultadoCredenciales = await generarCredencialesProfesores()
+      setResultadoCred(res)
+      if (res.creados > 0) toast(`Credenciales enviadas a ${res.creados} profesor${res.creados !== 1 ? 'es' : ''}`, 'success')
+      else if (res.errores === 0) toast('No hay profesores pendientes de cuenta', 'info')
+      if (res.errores > 0) toast(`${res.errores} envío${res.errores !== 1 ? 's' : ''} con error`, 'error')
+      await load()
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al generar credenciales', 'error')
+    } finally { setGenerando(false) }
+  }
+
+  async function reenviarCredenciales(u: Usuario) {
+    if (!confirm(
+      `Se generará una contraseña NUEVA para "${u.username}" (la actual dejará de funcionar) ` +
+      `y se enviará a ${u.correo || 'su correo'}.\n\n¿Continuar?`
+    )) return
+    setEnviandoId(u.id)
+    try {
+      const res = await enviarCredenciales(u.id)
+      toast(`Credenciales enviadas a ${res.enviado_a}`, 'success')
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Error al enviar credenciales', 'error')
+    } finally { setEnviandoId(null) }
+  }
+
   async function eliminar(u: Usuario) {
     if (!confirm(`¿Eliminar permanentemente al usuario "${u.username}"?`)) return
     try { await deleteUsuario(u.id); await load() }
@@ -122,11 +178,50 @@ export default function UsuariosPage() {
             <h2 className="text-2xl font-bold text-slate-800">Usuarios</h2>
             <p className="text-sm text-slate-500 mt-0.5">{usuarios.length} registro{usuarios.length !== 1 ? 's' : ''}</p>
           </div>
-          <button onClick={iniciarNuevo}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-            + Nuevo usuario
-          </button>
+          <div className="flex gap-2">
+            <button onClick={generarCredenciales} disabled={generando}
+              title="Crea cuentas para los profesores activos sin acceso y les envía su contraseña por correo"
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+              {generando ? 'Enviando…' : '✉ Credenciales a profesores'}
+            </button>
+            <button onClick={iniciarNuevo}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+              + Nuevo usuario
+            </button>
+          </div>
         </div>
+
+        {resultadoCred && (
+          <div className="mb-6 bg-white border border-slate-200 rounded-xl p-5 text-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-slate-700">Resultado del envío de credenciales</h3>
+              <button onClick={() => setResultadoCred(null)} className="text-xs text-slate-400 hover:text-slate-600">Cerrar</button>
+            </div>
+            <p className="text-slate-600 mb-2">
+              <span className="font-medium text-emerald-700">{resultadoCred.creados} enviadas</span>
+              {' · '}<span className={resultadoCred.errores ? 'font-medium text-red-600' : ''}>{resultadoCred.errores} con error</span>
+              {' · '}{resultadoCred.omitidos} omitidos
+            </p>
+            {resultadoCred.detalle_creados.length > 0 && (
+              <p className="text-xs text-slate-500 mb-1">
+                <span className="font-medium text-slate-600">Enviadas:</span>{' '}
+                {resultadoCred.detalle_creados.map(d => `${d.nombre} (${d.correo})`).join(' · ')}
+              </p>
+            )}
+            {resultadoCred.detalle_errores.length > 0 && (
+              <p className="text-xs text-red-600 mb-1">
+                <span className="font-medium">Errores:</span>{' '}
+                {resultadoCred.detalle_errores.map(d => `${d.nombre}: ${d.motivo}`).join(' · ')}
+              </p>
+            )}
+            {resultadoCred.detalle_omitidos.length > 0 && (
+              <p className="text-xs text-slate-400">
+                <span className="font-medium text-slate-500">Omitidos:</span>{' '}
+                {resultadoCred.detalle_omitidos.map(d => `${d.nombre}: ${d.motivo}`).join(' · ')}
+              </p>
+            )}
+          </div>
+        )}
 
         {showForm && (
           <div className="mb-6 bg-white border border-slate-200 rounded-xl p-6">
@@ -258,6 +353,13 @@ export default function UsuariosPage() {
                       <div className="flex items-center justify-end gap-3">
                         <button onClick={() => iniciarEdicion(u)}
                           className="text-xs text-blue-500 hover:text-blue-700 font-medium">Editar</button>
+                        {u.correo && !u.correo.endsWith('@pendiente.local') && (
+                          <button onClick={() => reenviarCredenciales(u)} disabled={enviandoId === u.id}
+                            title="Genera una contraseña nueva y la envía a su correo"
+                            className="text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50">
+                            {enviandoId === u.id ? 'Enviando…' : 'Enviar credenciales'}
+                          </button>
+                        )}
                         <button onClick={() => toggleActivo(u)}
                           className="text-xs text-slate-400 hover:text-slate-600">
                           {u.activo ? 'Desactivar' : 'Activar'}

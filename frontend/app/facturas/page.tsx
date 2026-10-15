@@ -201,7 +201,7 @@ export default function FacturasPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50">
                   <tr>
-                    {['UUID', 'RFC Emisor', 'Nombre', 'Subtotal', 'Total', 'Estado', 'Fecha emisión'].map(h => (
+                    {['UUID', 'RFC Emisor', 'Nombre', 'Subtotal', 'Total', 'Estado', 'Fecha emisión', 'Fecha subida'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -217,6 +217,7 @@ export default function FacturasPage() {
                       <td className="px-4 py-3 text-right tabular-nums font-semibold">{fmt(f.total)}</td>
                       <td className="px-4 py-3"><StatusBadge estado={f.estado} /></td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(f.fecha_emision)}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(f.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>

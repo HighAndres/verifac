@@ -52,9 +52,10 @@ def test_export_tiene_tres_hojas_y_estatus(db):
     filas = {r[0]: r for r in ws.iter_rows(min_row=2, values_only=True)}
     assert filas["EXPORT UNO"][9] == "Aprobada"
     assert filas["EXPORT UNO"][10] == "EXP-1"          # UUID
-    assert filas["EXPORT UNO"][13] == 0                # diferencia total
+    assert filas["EXPORT UNO"][12] is not None         # fecha de subida
+    assert filas["EXPORT UNO"][14] == 0                # diferencia total
     assert filas["EXPORT DOS"][9] == "Sin factura"
-    assert filas["EXPORT DOS"][12] is None             # sin total facturado
+    assert filas["EXPORT DOS"][13] is None             # sin total facturado
 
     ws2 = wb["Base BBVA"]
     aprobadas = list(ws2.iter_rows(min_row=2, values_only=True))

@@ -19,6 +19,9 @@ from app.services.cfdi_parser import CFDIData
 # ── Reglas fijas de negocio ───────────────────────────────────────────────────
 IVA_TASA = Decimal("0.16")
 TOLERANCIA = Decimal(str(settings.TOLERANCIA_MONTO))   # margen de redondeo (configurable)
+# Solo el IVA retenido admite más margen: hay profesores cuyos sistemas lo
+# calculan con otra tasa o redondeo. El resto de los campos sigue con TOLERANCIA.
+TOLERANCIA_IVA_RET = Decimal(str(settings.TOLERANCIA_IVA_RETENIDO))
 FORMA_PAGO_ESPERADA = "03"     # Transferencia electrónica
 METODO_PAGO_ESPERADO = "PUE"   # Pago en una sola exhibición
 MONEDA_ESPERADA = "MXN"
@@ -27,6 +30,10 @@ USO_CFDI_ESPERADO = "G03"
 
 def _cerca(recibido: Decimal, esperado: Decimal) -> bool:
     return abs(recibido - esperado) <= TOLERANCIA
+
+
+def _cerca_iva_ret(recibido: Decimal, esperado: Decimal) -> bool:
+    return abs(recibido - esperado) <= TOLERANCIA_IVA_RET
 
 
 def _ahora_mx() -> datetime:
@@ -204,7 +211,8 @@ def validar_cfdi(cfdi: CFDIData, db: Session,
         check("ISR retenido", str(cfdi.isr_retenido), str(isr_esp),
               _cerca(cfdi.isr_retenido, isr_esp), "1.25% del subtotal (RESICO)")
         check("IVA Retenido", str(cfdi.iva_retenido), str(iva_ret_esp),
-              _cerca(cfdi.iva_retenido, iva_ret_esp), "2/3 del IVA trasladado")
+              _cerca_iva_ret(cfdi.iva_retenido, iva_ret_esp),
+              f"2/3 del IVA trasladado (tolerancia ±${TOLERANCIA_IVA_RET})")
 
     elif cfdi.regimen_fiscal == "612":
         isr_esp = (cfdi.subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
@@ -212,7 +220,8 @@ def validar_cfdi(cfdi: CFDIData, db: Session,
         check("ISR retenido", str(cfdi.isr_retenido), str(isr_esp),
               _cerca(cfdi.isr_retenido, isr_esp), "10% del subtotal")
         check("IVA Retenido", str(cfdi.iva_retenido), str(iva_ret_esp),
-              _cerca(cfdi.iva_retenido, iva_ret_esp), "2/3 del IVA trasladado")
+              _cerca_iva_ret(cfdi.iva_retenido, iva_ret_esp),
+              f"2/3 del IVA trasladado (tolerancia ±${TOLERANCIA_IVA_RET})")
 
     elif cfdi.regimen_fiscal == "603":
         check("ISR retenido", str(cfdi.isr_retenido), "0.00",
@@ -308,18 +317,23 @@ def validar_cfdi(cfdi: CFDIData, db: Session,
                     _cerca(cfdi.iva_trasladado, Decimal(str(monto_ref.iva_trasladado))),
                     "Cotejado contra layout de montos del mes",
                 )
+                dif_iva_ret = abs(cfdi.iva_retenido - Decimal(str(monto_ref.iva_retenido)))
                 check(
                     "IVA Retenido (layout)",
                     str(cfdi.iva_retenido),
                     str(monto_ref.iva_retenido),
-                    _cerca(cfdi.iva_retenido, Decimal(str(monto_ref.iva_retenido))),
-                    "Cotejado contra layout de montos del mes",
+                    _cerca_iva_ret(cfdi.iva_retenido, Decimal(str(monto_ref.iva_retenido))),
+                    f"Cotejado contra layout de montos del mes (tolerancia ±${TOLERANCIA_IVA_RET})",
                 )
+                # Una diferencia aceptada en el IVA retenido se arrastra al total
+                # (Total = Subtotal + IVA − IVA Ret − ISR), así que el total puede
+                # desviarse del layout en esa misma cantidad sin ser un error nuevo.
+                tol_total = TOLERANCIA + min(dif_iva_ret, TOLERANCIA_IVA_RET)
                 check(
                     "Total (layout)",
                     str(cfdi.total),
                     str(monto_ref.total),
-                    _cerca(cfdi.total, Decimal(str(monto_ref.total))),
+                    abs(cfdi.total - Decimal(str(monto_ref.total))) <= tol_total,
                     "Cotejado contra layout de montos del mes",
                 )
 

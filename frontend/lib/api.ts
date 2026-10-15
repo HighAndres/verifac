@@ -111,6 +111,21 @@ export async function guardarPago(data: object) {
   }))
 }
 
+export async function descargarExcelPagos(mes: number, anio: number) {
+  const res = await fetch(`${API}/api/v1/pagos/export?mes=${mes}&anio=${anio}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(mensajeError(err.detail))
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Verifac_pagos_${anio}-${String(mes).padStart(2, '0')}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ── Usuarios ──────────────────────────────────────────────────────────────────
 
 export async function getUsuarios() {
@@ -139,6 +154,20 @@ export async function deleteUsuario(id: string) {
   }))
 }
 
+// Crea cuentas para los profesores sin acceso y les envía sus credenciales por correo.
+export async function generarCredencialesProfesores() {
+  return handle(await fetch(`${API}/api/v1/usuarios/generar-credenciales-profesores`, {
+    method: 'POST', headers: authHeaders(),
+  }))
+}
+
+// Regenera la contraseña de una cuenta y la envía a su correo.
+export async function enviarCredenciales(id: string) {
+  return handle(await fetch(`${API}/api/v1/usuarios/${id}/enviar-credenciales`, {
+    method: 'POST', headers: authHeaders(),
+  }))
+}
+
 // ── Auditoría ─────────────────────────────────────────────────────────────────
 
 export async function getAuditoria(params: Record<string, string> = {}) {
@@ -164,6 +193,14 @@ export async function uploadFactura(file: File) {
     method: 'POST',
     headers: authHeaders(),
     body: fd,
+  }))
+}
+
+// Elimina una factura defectuosa (solo superadmin) para liberar el UUID y
+// permitir que el profesor vuelva a subirla.
+export async function deleteFactura(id: string) {
+  return handle(await fetch(`${API}/api/v1/facturas/${id}`, {
+    method: 'DELETE', headers: authHeaders(),
   }))
 }
 

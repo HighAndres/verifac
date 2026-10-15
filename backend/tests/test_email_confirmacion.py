@@ -27,7 +27,7 @@ def _preparar(db, monkeypatch, activas=True):
     db.flush()
     monkeypatch.setattr(ec, "password_configurado", lambda: True)
     enviados = []
-    monkeypatch.setattr(ec, "_enviar_smtp", lambda dest, asunto, cuerpo: enviados.append((dest, asunto)))
+    monkeypatch.setattr(ec, "enviar_smtp", lambda dest, asunto, cuerpo: enviados.append((dest, asunto)))
     ec.procesar_confirmaciones(db)   # drena facturas reales pendientes (si las hay)
     enviados.clear()
     cfg.confirmaciones_activas = activas
@@ -109,7 +109,7 @@ def test_fallo_conexion_detiene_lote(db, monkeypatch):
     def _falla(dest, asunto, cuerpo):
         intentos.append(dest)
         raise ConnectionError("SMTP caído")
-    monkeypatch.setattr(ec, "_enviar_smtp", _falla)
+    monkeypatch.setattr(ec, "enviar_smtp", _falla)
     p1 = add_profesor(db, rfc="MAIL010101GG7", regimen="612")
     p2 = add_profesor(db, rfc="MAIL010101HH8", regimen="612")
     _factura(db, build_cfdi(rfc_emisor=p1.rfc, uuid="MAIL-C1"), "aprobada")
@@ -125,7 +125,7 @@ def test_fallo_smtp_no_marca_enviada(db, monkeypatch):
     _preparar(db, monkeypatch)
     def _falla(dest, asunto, cuerpo):
         raise ConnectionError("SMTP caído")
-    monkeypatch.setattr(ec, "_enviar_smtp", _falla)
+    monkeypatch.setattr(ec, "enviar_smtp", _falla)
     p = add_profesor(db, rfc="MAIL010101DD4", regimen="612")
     _factura(db, build_cfdi(rfc_emisor=p.rfc, uuid="MAIL-ERR"), "aprobada")
 

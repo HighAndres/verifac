@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Margen de redondeo (en pesos) al cotejar montos contra fórmulas y layout.
     # Absoluto; definir con el área fiscal si debe ser relativo.
     TOLERANCIA_MONTO: float = 0.10
+    # Tolerancia especial (en pesos) SOLO para el IVA retenido: los sistemas de
+    # facturación de algunos profesores calculan la retención con otra tasa o
+    # redondeo. Acordada en reunión (oct 2026) como regla general de hasta $1.00;
+    # el resto de los campos conserva TOLERANCIA_MONTO.
+    TOLERANCIA_IVA_RETENIDO: float = 1.00
 
     # IMAP — correo de honorarios
     IMAP_HOST: str = "imap.gmail.com"

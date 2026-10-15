@@ -12,6 +12,7 @@ vistazo qué pasó con cada una.
 import io
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill
@@ -32,6 +33,21 @@ UNIDAD_DESC = {"E48": "Unidad de servicio", "ACT": "Actividad"}
 
 _MONEY = "#,##0.00"
 _PREFIJOS_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _fecha_subida(f: Factura) -> Optional[str]:
+    """Fecha en que la factura entró al sistema, en hora de México: created_at
+    se guarda en UTC y de noche ya marca el día siguiente."""
+    if not f.created_at:
+        return None
+    dt = f.created_at
+    try:
+        from zoneinfo import ZoneInfo
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(ZoneInfo("America/Mexico_City"))
+    except Exception:
+        pass
+    return dt.strftime("%Y-%m-%d")
 
 
 def _celda_segura(valor):
@@ -91,7 +107,7 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
         "Nombre", "RFC", "Régimen", "Categoría",
         "Subtotal esperado", "IVA esperado", "IVA Ret esperado",
         "ISR Ret esperado", "Total esperado",
-        "Estatus", "UUID factura", "Fecha emisión", "Total facturado", "Diferencia",
+        "Estatus", "UUID factura", "Fecha emisión", "Fecha subida", "Total facturado", "Diferencia",
     ])
 
     for m in montos:
@@ -119,12 +135,13 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
             estatus,
             f.uuid_cfdi if f else None,
             f.fecha_emision.strftime("%Y-%m-%d") if f and f.fecha_emision else None,
+            _fecha_subida(f) if f else None,
             float(total_fact) if total_fact is not None else None,
             float(diferencia) if diferencia is not None else None,
         ])
 
     for fila in ws.iter_rows(min_row=2):
-        for c in fila[4:9] + fila[12:14]:
+        for c in fila[4:9] + fila[13:15]:
             c.number_format = _MONEY
     _autoancho(ws)
 
@@ -170,7 +187,7 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
     ws3 = wb.create_sheet("Aprobadas y rechazadas")
     _hoja_encabezado(ws3, [
         "Nombre emisor", "RFC emisor", "Estado", "Motivo de rechazo",
-        "Fecha emisión", "UUID factura", "Total", "Origen",
+        "Fecha emisión", "Fecha subida", "UUID factura", "Total", "Origen",
     ])
 
     todas = sorted(facturas, key=lambda f: (f.nombre_emisor or "", f.fecha_emision or datetime.min))
@@ -179,11 +196,12 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
             _celda_segura(f.nombre_emisor), f.rfc_emisor, f.estado.capitalize() if f.estado else None,
             _celda_segura(f.motivo_rechazo) if f.estado == "rechazada" else None,
             f.fecha_emision.strftime("%Y-%m-%d") if f.fecha_emision else None,
+            _fecha_subida(f),
             f.uuid_cfdi, float(f.total) if f.total is not None else None, f.origen,
         ])
 
     for fila in ws3.iter_rows(min_row=2):
-        for c in fila[6:7]:
+        for c in fila[7:8]:
             c.number_format = _MONEY
     _autoancho(ws3, maximo=60)
 
@@ -194,3 +212,44 @@ def generar_excel_mes(db: Session, mes: int, anio: int) -> bytes:
 
 def nombre_archivo(mes: int, anio: int) -> str:
     return f"Verifac_conciliacion_{anio}-{mes:02d}.xlsx"
+
+
+def generar_excel_pagos(db: Session, mes: int, anio: int) -> bytes:
+    """Reporte de pagos del mes en una sola hoja: una fila por profesor con el
+    estado de su factura, el monto esperado del layout y la marca de pago.
+    Formato práctico (acordado en reunión), sin estructura adicional."""
+    from app.services.pagos import lista_mensual
+
+    filas = lista_mensual(db, mes, anio)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"Pagos {mes:02d}-{anio}"
+    _hoja_encabezado(ws, [
+        "Nombre", "RFC", "Activo", "Estado factura", "Total facturado",
+        "Total esperado", "Pagada", "Fecha de pago", "Método de pago",
+        "Incidencia", "Registrado por",
+    ])
+
+    for f in filas:
+        ws.append([
+            _celda_segura(f["nombre"]), f["rfc"], "Sí" if f["activo"] else "No",
+            (f["factura_estado"] or "Sin factura").capitalize(),
+            f["factura_total"], f["esperado"],
+            "Sí" if f["pagada"] else "No",
+            f["fecha_pago"], f["metodo_pago"],
+            _celda_segura(f["incidencia"]), f["registrado_por"],
+        ])
+
+    for fila in ws.iter_rows(min_row=2):
+        for c in fila[4:6]:
+            c.number_format = _MONEY
+    _autoancho(ws)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def nombre_archivo_pagos(mes: int, anio: int) -> str:
+    return f"Verifac_pagos_{anio}-{mes:02d}.xlsx"

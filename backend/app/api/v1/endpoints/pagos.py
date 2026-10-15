@@ -31,6 +31,29 @@ class PagoUpsert(BaseModel):
     incidencia: Optional[str] = None
 
 
+@router.get(
+    "/export",
+    summary="Descarga el reporte de pagos del mes en Excel",
+)
+def exportar_pagos(
+    mes: int = Query(..., ge=1, le=12),
+    anio: int = Query(..., ge=2000, le=2100),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_revisor),
+):
+    from fastapi.responses import Response
+    from app.services.export_excel import generar_excel_pagos, nombre_archivo_pagos
+
+    contenido = generar_excel_pagos(db, mes, anio)
+    audit.log(db, username=user.username, rol=user.rol, accion="EXPORT",
+              recurso="pagos", recurso_id=f"{mes:02d}/{anio}")
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo_pagos(mes, anio)}"'},
+    )
+
+
 @router.get("")
 def listar_pagos(
     mes: int = Query(..., ge=1, le=12),
